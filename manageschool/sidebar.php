@@ -52,21 +52,35 @@
         <i class="bi bi-chat-dots me-2" style="font-weight:700; color:#3498db;"></i> Messaging
       </a>
     </li>
+    <!-- CBC Analysis -->
     <li class="nav-item mb-2">
       <a class="nav-link d-flex align-items-center text-dark load-page" href="cbcanalysis/index.php">
-        <i class="bi bi-calendar-week me-2" style="font-weight:700; color:#6f42c1;"></i> CBC Analysis
+        <i class="bi bi-grid-1x2 me-2" style="font-weight:700; color:#6f42c1;"></i>
+        CBC Analysis
       </a>
     </li>
 
+    <!-- Timetable -->
     <li class="nav-item mb-2">
       <a class="nav-link d-flex align-items-center text-dark load-page" href="timetable/index.php">
-        <i class="bi bi-calendar-week me-2" style="font-weight:700; color:#6f42c1;"></i> Timetable
+        <i class="bi bi-calendar-check me-2" style="font-weight:700; color:#6f42c1;"></i>
+        Timetable
       </a>
     </li>
 
+    <!-- KCSE Analysis -->
+    <!-- <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center text-dark load-page" href="kcse_analysis/index.php"> 
+        <i class="bi bi-bar-chart-line me-2" style="font-weight:700; color:#6f42c1;"></i>
+        KCSE Analysis
+      </a>
+    </li> -->
+
+    <!-- Support -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center text-dark load-page" href="timetable/index.php">
-        <i class="bi bi-calendar-week me-2" style="font-weight:700; color:#6f42c1;"></i>KCSE Analysis
+      <a class="nav-link d-flex align-items-center text-dark load-page" href="support/index.php">
+        <i class="bi bi-headset me-2" style="font-weight:700; color:#6f42c1;"></i>
+        Support
       </a>
     </li>
 

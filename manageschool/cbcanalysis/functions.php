@@ -765,7 +765,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             $stmt->close();
 
             // Construct the download URL
-            $download_url = "reports/examreports/TranscriptReport.php?year=$year&term=" . urlencode($term) . "&class_id=$class_id&stream_id=$stream_id&school_id=$school_id";
+            $download_url = "cbcanalysis/examreports/TranscriptReport.php?year=$year&term=" . urlencode($term) . "&class_id=$class_id&stream_id=$stream_id&school_id=$school_id";
             error_log("generate_transcript: Generated download URL: $download_url");
             echo json_encode(['status' => 'success', 'download_url' => $download_url]);
             break;

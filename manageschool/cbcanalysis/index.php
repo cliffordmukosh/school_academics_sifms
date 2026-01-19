@@ -735,7 +735,7 @@ $stmt->close();
             $('#analysisStreamId').html('<option value="">Select Stream</option><option value="0">All Streams</option>').prop('disabled', true);
             if (classId) {
                 // Load terms
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_terms_for_class',
                     class_id: classId
                 }, function(response) {
@@ -758,7 +758,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -788,7 +788,7 @@ $stmt->close();
             const term = $(this).val();
             $('#analysisExamId').html('<option value="">Select Exam</option>').prop('disabled', true);
             if (classId && term) {
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_exams_for_class',
                     class_id: classId,
                     term: term
@@ -862,7 +862,7 @@ $stmt->close();
             $('#reportStreamId').html('<option value="">Select Stream</option>').prop('disabled', true);
             if (classId) {
                 // Load terms
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_terms_for_class',
                     class_id: classId
                 }, function(response) {
@@ -885,7 +885,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -917,7 +917,7 @@ $stmt->close();
             $('#subjectStreamId').html('<option value="">All Streams</option>').prop('disabled', true);
             if (classId) {
                 // Load terms
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_terms_for_class',
                     class_id: classId
                 }, function(response) {
@@ -940,7 +940,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -970,7 +970,7 @@ $stmt->close();
             const term = $(this).val();
             $('#subjectExamId').html('<option value="">Select Exam</option>').prop('disabled', true);
             if (classId && term) {
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_exams_for_class',
                     class_id: classId,
                     term: term
@@ -1003,7 +1003,7 @@ $stmt->close();
             $('#performanceStreamId').html('<option value="">All Streams</option>').prop('disabled', true);
             if (classId) {
                 // Load terms
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_terms_for_class',
                     class_id: classId
                 }, function(response) {
@@ -1026,7 +1026,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -1056,7 +1056,7 @@ $stmt->close();
             const term = $(this).val();
             $('#performanceExamId').html('<option value="">Select Exam</option>').prop('disabled', true);
             if (classId && term) {
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_exams_for_class',
                     class_id: classId,
                     term: term
@@ -1089,7 +1089,7 @@ $stmt->close();
             $('#reportStreamIdNew').html('<option value="">Select Stream</option><option value="0">All Streams</option>').prop('disabled', true);
             if (year && classId) {
                 // Load exams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_exams_for_class_and_year',
                     class_id: classId,
                     year: year
@@ -1113,7 +1113,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -1145,7 +1145,7 @@ $stmt->close();
             $('#transcriptStreamId').html('<option value="">Select Stream</option><option value="0">All Streams</option>').prop('disabled', true);
             if (year && classId) {
                 // Load terms
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_terms_for_class_and_year',
                     class_id: classId,
                     year: year
@@ -1169,7 +1169,7 @@ $stmt->close();
                 });
 
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -1205,7 +1205,7 @@ $stmt->close();
                 return;
             }
 
-            $.post('reports/functions.php', {
+            $.post('cbcanalysis/functions.php', {
                 action: 'generate_transcript',
                 year: year,
                 term: term,
@@ -1233,7 +1233,7 @@ $stmt->close();
             $('#classCheckboxes').html('');
             if (year) {
                 // Load exams for the selected year
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_exams_by_year',
                     year: year
                 }, function(response) {
@@ -1262,7 +1262,7 @@ $stmt->close();
             $('#classCheckboxes').html('');
             if (year && examName && term) {
                 // Load classes for the selected exam, year, and term
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_classes_by_exam',
                     year: year,
                     exam_name: examName,
@@ -1306,7 +1306,7 @@ $stmt->close();
             $('#classListSubjectId').html('<option value="">Select Subject</option>').prop('disabled', true);
             if (classId) {
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -1325,7 +1325,7 @@ $stmt->close();
                 });
 
                 // Load subjects
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_subjects_for_class',
                     class_id: classId
                 }, function(response) {
@@ -1363,7 +1363,7 @@ $stmt->close();
             $('#scoreSheetSubjectId').html('<option value="">Select Subject</option>').prop('disabled', true);
             if (classId) {
                 // Load streams
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
@@ -1382,7 +1382,7 @@ $stmt->close();
                 });
 
                 // Load subjects
-                $.post('reports/functions.php', {
+                $.post('cbcanalysis/functions.php', {
                     action: 'get_subjects_for_class',
                     class_id: classId
                 }, function(response) {
