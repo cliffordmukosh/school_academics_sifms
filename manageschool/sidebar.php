@@ -62,7 +62,7 @@
 
     <!-- Timetable -->
     <li class="nav-item mb-2">
-      <a class="nav-link d-flex align-items-center text-dark load-page" href="timetable/index.php">
+      <a class="nav-link d-flex align-items-center text-dark load-page" href="timetables/index.php">
         <i class="bi bi-calendar-check me-2" style="font-weight:700; color:#6f42c1;"></i>
         Timetable
       </a>

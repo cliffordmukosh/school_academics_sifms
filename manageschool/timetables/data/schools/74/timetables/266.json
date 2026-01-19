@@ -1,0 +1,242 @@
+{
+    "schema": 1,
+    "class_id": "266",
+    "saved_at": "2026-01-18T17:55:52+00:00",
+    "timetable": {
+        "meta": {
+            "department": "CLASS TIMETABLE",
+            "classTeacher": "",
+            "term": "TERM 1 TEST FORM",
+            "form": "FORM 1 TEST",
+            "footerCodes": "MR. SAMUEL",
+            "footerBrand": "2026"
+        },
+        "times": {
+            "p1": "08:00 - 12:00",
+            "p2": "",
+            "b1": "",
+            "p3": "",
+            "p4": "",
+            "b2": "",
+            "p5": "",
+            "p6": "",
+            "p7": "",
+            "l1": "",
+            "p8": "",
+            "p9": "",
+            "p10": ""
+        },
+        "days": {
+            "Mo": {
+                "p1": {
+                    "subject": "MAT",
+                    "teacher": ""
+                },
+                "p2": {
+                    "subject": "2",
+                    "teacher": ""
+                },
+                "p3": {
+                    "subject": "3",
+                    "teacher": ""
+                },
+                "p4": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p5": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p6": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p7": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p8": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p9": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p10": {
+                    "subject": "",
+                    "teacher": ""
+                }
+            },
+            "Tu": {
+                "p1": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p2": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p3": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p4": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p5": {
+                    "subject": "AA",
+                    "teacher": ""
+                },
+                "p6": {
+                    "subject": "AA",
+                    "teacher": ""
+                },
+                "p7": {
+                    "subject": "VV",
+                    "teacher": ""
+                },
+                "p8": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p9": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p10": {
+                    "subject": "",
+                    "teacher": ""
+                }
+            },
+            "We": {
+                "p1": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p2": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p3": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p4": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p5": {
+                    "subject": "CC",
+                    "teacher": ""
+                },
+                "p6": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p7": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p8": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p9": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p10": {
+                    "subject": "",
+                    "teacher": ""
+                }
+            },
+            "Th": {
+                "p1": {
+                    "subject": "",
+                    "teacher": "TEST"
+                },
+                "p2": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p3": {
+                    "subject": "X",
+                    "teacher": ""
+                },
+                "p4": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p5": {
+                    "subject": "A",
+                    "teacher": ""
+                },
+                "p6": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p7": {
+                    "subject": "Q",
+                    "teacher": "QQ"
+                },
+                "p8": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p9": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p10": {
+                    "subject": "",
+                    "teacher": ""
+                }
+            },
+            "Fr": {
+                "p1": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p2": {
+                    "subject": "",
+                    "teacher": "QQQQ"
+                },
+                "p3": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p4": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p5": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p6": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p7": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p8": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p9": {
+                    "subject": "",
+                    "teacher": ""
+                },
+                "p10": {
+                    "subject": "",
+                    "teacher": ""
+                }
+            }
+        }
+    }
+}

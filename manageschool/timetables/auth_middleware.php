@@ -1,7 +1,7 @@
 <?php
 // apis/auth_middleware.php
 session_start();
-require_once 'db.php';
+require_once '../connection/db.php';
 
 function validateBearerToken() {
     $headers = getallheaders();

@@ -96,7 +96,19 @@ if ($student_id > 0) {
         die('No students found.');
     }
 }
+if (isset($school_id) && $school_id > 0) {
+    $call_stmt = $conn->prepare("CALL sp_generate_historical_data(?)");
+    $call_stmt->bind_param("i", $school_id);
 
+    if (!$call_stmt->execute()) {
+        // Log error (non-fatal) – report should still load
+        error_log("Failed to generate historical data for school ID $school_id: " . $call_stmt->error);
+        // Optional: you can set a variable to show a warning in HTML later
+        // $historical_warning = "Historical data update failed. Positions may be outdated.";
+    }
+
+    $call_stmt->close();
+}
 // Fetch school details
 $stmt = $conn->prepare("SELECT name, logo FROM schools WHERE school_id = ?");
 $stmt->bind_param("i", $school_id);

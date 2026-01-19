@@ -338,8 +338,10 @@ $max_total_score = $exam['min_subjects'] ? $exam['min_subjects'] * 100 : 0;
             SELECT 
                 esa.*,
                 s.name AS subject_name
+                
             FROM cbc_exam_subject_aggregates esa
             JOIN subjects s ON esa.subject_id = s.subject_id
+    
             WHERE esa.exam_id = ? 
               AND esa.student_id = ?
             ORDER BY esa.subject_id
@@ -409,6 +411,7 @@ $max_total_score = $exam['min_subjects'] ? $exam['min_subjects'] * 100 : 0;
                         <th class="subject-col">Subject</th>
                         <th>Marks (%)</th>
                         <th>Grade</th>
+                        <th>Points</th>
                         <th class="remarks-col">Remarks</th>
                         <th class="teacher-col">Teacher</th>
                     </tr>
@@ -422,6 +425,7 @@ $max_total_score = $exam['min_subjects'] ? $exam['min_subjects'] * 100 : 0;
                             <td class="subject-col"><?= htmlspecialchars($sub['subject_name']) ?></td>
                             <td><?= number_format($sub['subject_score'], 2) ?></td>
                             <td><?= htmlspecialchars($sub['subject_grade'] ?? '—') ?></td>
+                            <td><?= htmlspecialchars($sub['subject_points'] ?? '—') ?></td>
                             <td class="remarks-col"><?= htmlspecialchars($sub['subject_teacher_remark_text'] ?? '—') ?></td>
                             <td class="teacher-col"><?= htmlspecialchars($teacher) ?></td>
                         </tr>

@@ -12,7 +12,7 @@ $action = $_POST['action'] ?? '';
 
 // Allowed support emails (no account needed)
 $allowed_support_emails = [
-    'email2@gmail.com',
+    'bmunywoki65@gmail.com',
     'cliffordmukosh@gmail.com',
     // Add more if needed
 ];
@@ -138,7 +138,7 @@ switch ($action) {
             $mail->Port       = 465;
 
             $mail->setFrom('communications@sifms.co.ke', 'SIFMS Support');
-            $mail->addAddress('email2@gmail.com');
+            $mail->addAddress('bmunywoki65@gmail.com');
             $mail->addAddress('cliffordmukosh@gmail.com');
 
             $mail->isHTML(true);
@@ -152,6 +152,7 @@ switch ($action) {
 
         echo json_encode(['status' => 'success', 'message' => 'Ticket created. Support notified.']);
         break;
+
 
     case 'add_reply':
         $ticket_id     = (int)($_POST['ticket_id'] ?? 0);
@@ -228,16 +229,16 @@ switch ($action) {
         $conn->query("UPDATE support_tickets SET updated_at = NOW() WHERE ticket_id = $ticket_id");
 
         // ────────────────────────────────────────────────
-        // DIFFERENT LINKS BASED ON WHO IS REPLYING
+        // BUTTON & LINK LOGIC - AS YOU REQUESTED
         // ────────────────────────────────────────────────
         if ($is_support_reply) {
-            // Allowed support emails (admins) → per-ticket reply link
-            $button_link = "http://192.168.100.145/online/schoolacademics/manageschool/support/reply.php?ticket_id=$ticket_id";
-            $button_text = "View & Reply to Ticket";
-        } else {
-            // Normal school user replied → link to school dashboard
+            // Support/admin replied → email to SCHOOL + dashboard link + "View Support Dashboard"
             $button_link = "http://localhost/online/schoolacademics/manageschool/support/index.php";
             $button_text = "View Support Dashboard";
+        } else {
+            // Normal school user replied → email to support team + per-ticket link
+            $button_link = "http://192.168.100.145/online/schoolacademics/manageschool/support/reply.php?ticket_id=$ticket_id";
+            $button_text = "View & Reply to Ticket";
         }
 
         // Rich HTML email notification
@@ -279,13 +280,13 @@ switch ($action) {
             $mail->setFrom('communications@sifms.co.ke', 'SIFMS Support');
 
             if ($is_support_reply) {
-                // Support replied → notify the school's official email
+                // Support replied → notify SCHOOL email
                 if (!empty($ticket['school_email'])) {
                     $mail->addAddress($ticket['school_email']);
                 }
             } else {
                 // User replied → notify support team
-                $mail->addAddress('email2@gmail.com');
+                $mail->addAddress('bmunywoki65@gmail.com');
                 $mail->addAddress('cliffordmukosh@gmail.com');
             }
 
@@ -304,7 +305,6 @@ switch ($action) {
         ]);
         break;
 
-    // get_messages & get_ticket_details remain unchanged
     case 'get_messages':
         $ticket_id = (int)($_POST['ticket_id'] ?? 0);
         if ($ticket_id <= 0) {

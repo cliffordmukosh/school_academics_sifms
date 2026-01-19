@@ -97,6 +97,17 @@ if ($student_id > 0) {
     }
 }
 
+if (isset($school_id) && $school_id > 0) {
+    $call_stmt = $conn->prepare("CALL sp_generate_historical_data(?)");
+    $call_stmt->bind_param("i", $school_id);
+
+    if (!$call_stmt->execute()) {
+        error_log("Failed to generate historical data for school ID $school_id: " . $call_stmt->error);
+    }
+
+    $call_stmt->close();
+}
+
 // Fetch school details
 $stmt = $conn->prepare("SELECT name, logo FROM schools WHERE school_id = ?");
 $stmt->bind_param("i", $school_id);
@@ -155,49 +166,11 @@ if (empty($principal_signature)) {
 } elseif (strpos($principal_signature, 'http') !== 0) {
     $principal_signature = 'https://academics.sifms.co.ke/manageschool/' . ltrim(str_replace('manageschool/', '', $principal_signature), '/');
 }
-
-// Calculate class and stream means
-$stmt = $conn->prepare("
-    SELECT AVG(average) as class_mean
-    FROM student_term_results_aggregates
-    WHERE school_id = ? AND class_id = ? AND term = ? AND year = ?
-");
-$stmt->bind_param("iisi", $school_id, $class_id, $term, $year);
-$stmt->execute();
-$class_mean_result = $stmt->get_result()->fetch_assoc();
-$class_mean = $class_mean_result['class_mean'] ? round($class_mean_result['class_mean'], 2) : 0;
-$class_grade = getGradeAndPointsFunc($conn, $class_mean, 1)['grade'];
-$stmt->close();
-
-$stream_mean = $class_mean;
-$stream_grade = $class_grade;
-if ($stream_id > 0) {
-    $stmt = $conn->prepare("
-        SELECT AVG(average) as stream_mean
-        FROM student_term_results_aggregates
-        WHERE school_id = ? AND class_id = ? AND stream_id = ? AND term = ? AND year = ?
-    ");
-    $stmt->bind_param("iiisi", $school_id, $class_id, $stream_id, $term, $year);
-    $stmt->execute();
-    $stream_mean_result = $stmt->get_result()->fetch_assoc();
-    $stream_mean = $stream_mean_result['stream_mean'] ? round($stream_mean_result['stream_mean'], 2) : 0;
-    $stream_grade = getGradeAndPointsFunc($conn, $stream_mean, 1)['grade'];
-    $stmt->close();
-}
-
-function pointGrade($conn, $points, $grading_system_id) {
-    $points = floor($points);
-    $stmt = $conn->prepare("SELECT grade FROM grading_rules WHERE grading_system_id = ? AND points = ? LIMIT 1");
-    $stmt->bind_param("ii", $grading_system_id, $points);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return $result ? $result['grade'] : 'N/A';
-}
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -216,24 +189,28 @@ function pointGrade($conn, $points, $grading_system_id) {
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
             page-break-after: always;
         }
+
         h2 {
             font-size: 16px;
             margin-bottom: 2px;
             font-weight: bold;
             color: #0d6efd;
         }
+
         .header {
             text-align: center;
             border-bottom: 2px solid #0d6efd;
             margin-bottom: 6px;
             padding-bottom: 4px;
         }
+
         .header img {
             width: 100px;
             height: 100px;
             object-fit: contain;
             margin-bottom: 4px;
         }
+
         .profile-pic {
             width: 65px;
             height: 65px;
@@ -241,16 +218,20 @@ function pointGrade($conn, $points, $grading_system_id) {
             border-radius: 6px;
             border: 1px solid #ccc;
         }
+
         .table th {
             background: #e9f2ff !important;
             color: #0d47a1;
             text-align: center;
         }
-        .table th, .table td {
+
+        .table th,
+        .table td {
             padding: 3px 5px !important;
             vertical-align: middle;
             font-size: 11px;
         }
+
         .remarks-box {
             border: 1px solid #0d6efd;
             padding: 6px 8px;
@@ -260,6 +241,7 @@ function pointGrade($conn, $points, $grading_system_id) {
             border-radius: 4px;
             font-size: 12px;
         }
+
         .graph-placeholder {
             height: 140px;
             border: 1px dashed #999;
@@ -269,35 +251,43 @@ function pointGrade($conn, $points, $grading_system_id) {
             color: #555;
             background: #fafafa;
         }
+
         .subjects-table td:first-child,
         .subjects-table td:nth-last-child(2) {
             text-align: left !important;
         }
+
         footer {
             margin-top: 10px;
             font-size: 12px;
             border-top: 2px solid #0d6efd;
             padding-top: 5px;
         }
+
         footer table td {
             padding: 2px 6px;
         }
+
         .student-row {
             display: flex;
             flex-wrap: nowrap !important;
             gap: 6px;
         }
+
         .student-row .card {
             flex: 1;
             border: 1px solid #0d6efd;
         }
+
         .student-row .card-body {
             padding: 6px;
             font-size: 12px;
         }
+
         .modal-loader .modal-content {
             text-align: center;
         }
+
         .loader-spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #0d6efd;
@@ -307,23 +297,55 @@ function pointGrade($conn, $points, $grading_system_id) {
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         @page {
             size: A4;
             margin: 10mm;
         }
+
         @media print {
-            body { background: none; margin: 0; font-size: 12px; }
-            .report-container { box-shadow: none; border-radius: 0; max-width: 100%; padding: 0; }
-            .student-row { display: flex !important; flex-wrap: nowrap !important; }
-            footer { position: absolute; bottom: 0; left: 0; right: 0; }
-            .no-print { display: none !important; }
+            body {
+                background: none;
+                margin: 0;
+                font-size: 12px;
+            }
+
+            .report-container {
+                box-shadow: none;
+                border-radius: 0;
+                max-width: 100%;
+                padding: 0;
+            }
+
+            .student-row {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+            }
+
+            footer {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="no-print" style="display: flex; align-items: center; justify-content: space-between; background-color: #1a1f71; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); color: #fff; margin-bottom: 15px; position: sticky; top: 0; z-index: 9999;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -336,10 +358,10 @@ function pointGrade($conn, $points, $grading_system_id) {
         <div style="display: flex; gap: 8px;">
             <button style="background:#ff6b6b; border:none; padding:6px 12px; border-radius:5px; color:#fff;" onclick="history.back()">Back</button>
             <button style="background:#007bff; border:none; padding:6px 12px; border-radius:5px; color:#fff;" onclick="window.print()">Print</button>
-<a href="generate_transcript_pdf.php?year=<?= urlencode($year) ?>&term=<?= urlencode($term) ?>&class_id=<?= $class_id ?>&stream_id=<?= $stream_id ?>&student_id=<?= $student_id ?>"
-   class="btn btn-success" target="_blank">
-   Download Transcript PDF
-</a>
+            <a href="generate_transcript_pdf.php?year=<?= urlencode($year) ?>&term=<?= urlencode($term) ?>&class_id=<?= $class_id ?>&stream_id=<?= $stream_id ?>&student_id=<?= $student_id ?>"
+                class="btn btn-success" target="_blank">
+                Download Transcript PDF
+            </a>
         </div>
     </div>
 
@@ -410,20 +432,45 @@ function pointGrade($conn, $points, $grading_system_id) {
             SELECT term, year, total_points, class_position
             FROM student_termly_historical_data
             WHERE school_id = ? AND student_id = ?
-            ORDER BY year, term
+            ORDER BY year ASC, FIELD(term, 'Term 1', 'Term 2', 'Term 3')
         ");
         $stmt->bind_param("ii", $school_id, $student['student_id']);
         $stmt->execute();
         $historical_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
+        // Populate $progress_data correctly for Grade 10 / Grade 11
         $progress_data = [];
-        foreach ($historical_data as $data) {
-            $form = 'Form ' . ($data['year'] - ($student['kcpe_year'] ?? $year) + 1);
-            $progress_data[$form][$data['term']] = [
-                'total_points' => $data['total_points'],
-                'position' => $data['class_position']
+
+        foreach ($historical_data as $row) {
+            if ($row['year'] == $year) {
+                $form_key = 'Grade 10';           // current year → current grade
+            } else if ($row['year'] < $year) {
+                $form_key = 'Grade 10';           // previous years → still under Grade 10 for now
+            } else {
+                $form_key = 'Grade 11';           // future or misordered years
+            }
+
+            if (!isset($progress_data[$form_key])) {
+                $progress_data[$form_key] = [];
+            }
+
+            $progress_data[$form_key][$row['term']] = [
+                'total_points' => $row['total_points'],
+                'position'     => $row['class_position']
             ];
+        }
+
+        // Prepare chart data using total_points (0–100 scale)
+        $chart_labels = [];
+        $chart_points = [];
+        $chart_positions = [];
+
+        foreach ($historical_data as $row) {
+            $label = $row['term'] . ' ' . $row['year'];
+            $chart_labels[] = $label;
+            $chart_points[] = (float)$row['total_points'];
+            $chart_positions[] = $row['class_position'];
         }
 
         $stmt = $conn->prepare("
@@ -473,10 +520,6 @@ function pointGrade($conn, $points, $grading_system_id) {
                             <div>
                                 <p class="mb-1"><strong>Name:</strong> <?php echo htmlspecialchars($student['full_name']); ?></p>
                                 <p class="mb-1"><strong>Adm No:</strong> <?php echo htmlspecialchars($student['admission_no']); ?></p>
-                                <p class="mb-1"><strong>Class:</strong> 
-                                    <?php echo htmlspecialchars($class_name . ' ' . ($student['stream_name'] ?? '')); ?>
-                                </p>
-                                <p class="mb-0"><strong>Grade:</strong> <?php echo htmlspecialchars($student_result['grade'] ?? 'N/A'); ?></p>
                             </div>
                         </div>
                     </div>
@@ -484,34 +527,12 @@ function pointGrade($conn, $points, $grading_system_id) {
 
                 <div class="card h-100">
                     <div class="card-body">
-                        <p class="mb-1"><strong>Class Position:</strong> 
-                            <?php echo $student_result['class_position'] ?? 'N/A'; ?> 
-                            out of <?php echo $student_result['class_total_students'] ?? 'N/A'; ?>
+                        <p class="mb-1"><strong>Class:</strong>
+                            <?php echo htmlspecialchars($class_name . ' ' . ($student['stream_name'] ?? '')); ?>
                         </p>
-                        <p class="mb-1"><strong>Stream Position:</strong> 
-                            <?php echo $student_result['stream_position'] ?? 'N/A'; ?> 
-                            out of <?php echo $student_result['stream_total_students'] ?? 'N/A'; ?>
-                        </p>
-                        <p class="mb-1"><strong>Current Term Avg:</strong> 
-                            <?php echo number_format($student_result['average'] ?? 0, 2); ?>
-                        </p>
-                        <p class="mb-1"><strong>Deviation:</strong> 
-                            <?php echo $deviation; ?>
-                        </p>
+                        <p class="mb-0"><strong>Grade:</strong> <?php echo htmlspecialchars($student_result['grade'] ?? 'N/A'); ?></p>
                     </div>
                 </div>
-            </div>
-
-            <div class="remarks-box">
-                <strong>Class Mean:</strong> <?php echo number_format($class_mean, 2); ?> 
-                <strong>Class Grade:</strong> <?php echo $class_grade; ?> 
-                <strong>Stream Mean:</strong> <?php echo number_format($stream_mean, 2); ?> 
-                <strong>Stream Grade:</strong> <?php echo $stream_grade; ?> 
-                <strong>Student Mean:</strong> <?php echo number_format($student_result['average'] ?? 0, 2); ?> 
-                <strong>Student Grade:</strong> <?php echo $student_result['grade'] ?? 'N/A'; ?> 
-                <strong>KCPE:</strong> 
-                    <?php echo $student['kcpe_score'] ?? 'N/A'; ?>
-                    (<?php echo $student['kcpe_grade'] ?? 'N/A'; ?>)
             </div>
 
             <table class="table table-bordered table-sm text-center align-middle mb-2 subjects-table">
@@ -546,7 +567,7 @@ function pointGrade($conn, $points, $grading_system_id) {
                     <tr class="table-primary fw-bold">
                         <td>Totals</td>
                         <td colspan="<?php echo count($exam_names) + 4; ?>">
-                            Total Marks: <?php echo number_format($total_marks, 0); ?>/<?php echo $max_marks; ?> | 
+                            Total Marks: <?php echo number_format($total_marks, 0); ?>/<?php echo $max_marks; ?> |
                             Average: <?php echo number_format($student_result['average'] ?? 0, 2); ?>
                         </td>
                     </tr>
@@ -571,78 +592,59 @@ function pointGrade($conn, $points, $grading_system_id) {
                 <tr>
                     <td width="55%">
                         <strong>PROGRESS ANALYSIS</strong><br />
-                        Total Marks: <?php echo number_format($total_marks, 0); ?>/<?php echo $max_marks; ?> &nbsp; | &nbsp; 
-                        Mean Points: <?php echo number_format($student_result['total_points'] ?? 0, 3); ?><br />
+                        Total Marks: <?php echo number_format($total_marks, 0); ?>/<?php echo $max_marks; ?> &nbsp; | &nbsp;
 
                         <table class="table table-bordered table-sm text-center mt-1 mb-1">
                             <tr>
-                                <th colspan="4">FORM ONE</th>
-                                <th colspan="4">FORM TWO</th>
+                                <th colspan="4">Grade 10</th>
+                                <th colspan="4">Grade 11</th>
                             </tr>
                             <tr>
-                                <td>I</td><td>II</td><td>III</td><td>Pos/Out</td>
-                                <td>I</td><td>II</td><td>III</td><td>Pos/Out</td>
+                                <td>I</td>
+                                <td>II</td>
+                                <td>III</td>
+                                <td>Pos/Out</td>
+                                <td>I</td>
+                                <td>II</td>
+                                <td>III</td>
+                                <td>Pos/Out</td>
                             </tr>
                             <tr>
                                 <?php
                                 $terms = ['Term 1', 'Term 2', 'Term 3'];
-                                $form1_data = $progress_data['Form 1'] ?? [];
-                                $form2_data = $progress_data['Form 2'] ?? [];
+                                $form1_data = $progress_data['Grade 10'] ?? [];
+                                $form2_data = $progress_data['Grade 11'] ?? [];
+
+                                // Grade 10: points for Term 1, 2, 3 + position only on Term 3
                                 foreach ($terms as $t): ?>
                                     <td><?php echo isset($form1_data[$t]['total_points']) ? number_format($form1_data[$t]['total_points'], 1) : '-'; ?></td>
                                 <?php endforeach; ?>
                                 <td><?php echo isset($form1_data['Term 3']['position']) ? $form1_data['Term 3']['position'] . '/-' : '-'; ?></td>
-                                <?php foreach ($terms as $t): ?>
+
+                                <?php
+                                // Grade 11: points for Term 1, 2, 3 + position only on Term 3
+                                foreach ($terms as $t): ?>
                                     <td><?php echo isset($form2_data[$t]['total_points']) ? number_format($form2_data[$t]['total_points'], 1) : '-'; ?></td>
                                 <?php endforeach; ?>
                                 <td><?php echo isset($form2_data['Term 3']['position']) ? $form2_data['Term 3']['position'] . '/-' : '-'; ?></td>
-                            </tr>
-                            <tr>
-                                <td colspan="4">Mean Points: <?php echo count($form1_data) > 0 ? number_format(array_sum(array_column($form1_data, 'total_points')) / count($form1_data), 1) . ' (' . pointGrade($conn, array_sum(array_column($form1_data, 'total_points')) / count($form1_data), $grading_system_id) . ')' : '-'; ?></td>
-                                <td colspan="4">Mean Points: <?php echo count($form2_data) > 0 ? number_format(array_sum(array_column($form2_data, 'total_points')) / count($form2_data), 1) . ' (' . pointGrade($conn, array_sum(array_column($form2_data, 'total_points')) / count($form2_data), $grading_system_id) . ')' : '-'; ?></td>
-                            </tr>
-                            <!-- Form 3 + Form 4 -->
-                            <tr>
-                                <th colspan="4">FORM THREE</th>
-                                <th colspan="4">FORM FOUR</th>
-                            </tr>
-                            <tr>
-                                <td>I</td><td>II</td><td>III</td><td>Pos/Out</td>
-                                <td>I</td><td>II</td><td>III</td><td>Pos/Out</td>
-                            </tr>
-                            <tr>
-                                <?php
-                                $form3_data = $progress_data['Form 3'] ?? [];
-                                $form4_data = $progress_data['Form 4'] ?? [];
-                                foreach ($terms as $t): ?>
-                                    <td><?php echo isset($form3_data[$t]['total_points']) ? number_format($form3_data[$t]['total_points'], 1) : '-'; ?></td>
-                                <?php endforeach; ?>
-                                <td><?php echo isset($form3_data['Term 3']['position']) ? $form3_data['Term 3']['position'] . '/-' : '-'; ?></td>
-                                <?php foreach ($terms as $t): ?>
-                                    <td><?php echo isset($form4_data[$t]['total_points']) ? number_format($form4_data[$t]['total_points'], 1) : '-'; ?></td>
-                                <?php endforeach; ?>
-                                <td><?php echo isset($form4_data['Term 3']['position']) ? $form4_data['Term 3']['position'] . '/-' : '-'; ?></td>
-                            </tr>
-                            <tr>
-                                <td colspan="4">Mean Points: <?php echo count($form3_data) > 0 ? number_format(array_sum(array_column($form3_data, 'total_points')) / count($form3_data), 1) . ' (' . pointGrade($conn, array_sum(array_column($form3_data, 'total_points')) / count($form3_data), $grading_system_id) . ')' : '-'; ?></td>
-                                <td colspan="4">Mean Points: <?php echo count($form4_data) > 0 ? number_format(array_sum(array_column($form4_data, 'total_points')) / count($form4_data), 1) . ' (' . pointGrade($conn, array_sum(array_column($form4_data, 'total_points')) / count($form4_data), $grading_system_id) . ')' : '-'; ?></td>
                             </tr>
                         </table>
                     </td>
                     <td>
                         <strong>Graphical Analysis</strong><br />
+
                         <canvas id="progressChart_<?php echo $student['student_id']; ?>" width="400" height="250"></canvas>
-                        <?php if (!empty($progress_data)): ?>
+
+                        <?php if (!empty($chart_points)): ?>
                             <script>
                                 window['chart_progressChart_<?php echo $student['student_id']; ?>'] = new Chart(
-                                    document.getElementById('progressChart_<?php echo $student['student_id']; ?>').getContext('2d'),
-                                    {
+                                    document.getElementById('progressChart_<?php echo $student['student_id']; ?>').getContext('2d'), {
                                         type: 'line',
                                         data: {
-                                            labels: [<?php echo implode(',', array_map(fn($l) => "'$l'", array_keys(array_merge(...array_values($progress_data))))); ?>],
+                                            labels: <?php echo json_encode($chart_labels); ?>,
                                             datasets: [{
-                                                label: 'Mean Points',
-                                                data: [<?php echo implode(',', array_map(fn($d) => $d['total_points'] ?? 0, array_merge(...array_values($progress_data)))); ?>],
+                                                label: 'Total Points',
+                                                data: <?php echo json_encode($chart_points); ?>,
                                                 borderColor: 'blue',
                                                 backgroundColor: 'rgba(0, 123, 255, 0.2)',
                                                 fill: true,
@@ -652,17 +654,34 @@ function pointGrade($conn, $points, $grading_system_id) {
                                         },
                                         options: {
                                             responsive: true,
-                                            plugins: { legend: { position: 'top' } },
+                                            plugins: {
+                                                legend: {
+                                                    position: 'top'
+                                                }
+                                            },
                                             scales: {
-                                                y: { beginAtZero: true, max: 12, title: { display: true, text: 'Mean Points (1-12)' } },
-                                                x: { title: { display: true, text: 'Terms' } }
+                                                y: {
+                                                    min: 0,
+                                                    max: 100,
+                                                    beginAtZero: true,
+                                                    title: {
+                                                        display: true,
+                                                        text: 'Total Points (0–100)'
+                                                    }
+                                                },
+                                                x: {
+                                                    title: {
+                                                        display: true,
+                                                        text: 'Term & Year'
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 );
                             </script>
                         <?php else: ?>
-                            <div class="graph-placeholder">No progress data available</div>
+                            <div class="graph-placeholder">No historical progress data available</div>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -708,7 +727,8 @@ function pointGrade($conn, $points, $grading_system_id) {
             chartInstances.length = 0;
 
             const temp = document.createElement('div');
-            temp.style.position = 'absolute'; temp.style.left = '-9999px';
+            temp.style.position = 'absolute';
+            temp.style.left = '-9999px';
             document.body.appendChild(temp);
 
             containers.forEach((c, i) => {
@@ -722,16 +742,26 @@ function pointGrade($conn, $points, $grading_system_id) {
                 }
             });
 
-            const filename = containers.length === 1 
-                ? '<?php echo htmlspecialchars($students[0]['full_name'] ?? 'Transcript'); ?>_<?php echo $term . '_' . $year; ?>.pdf'
-                : 'Transcripts_<?php echo $term . '_' . $year; ?>.pdf';
+            const filename = containers.length === 1 ?
+                '<?php echo htmlspecialchars($students[0]['full_name'] ?? 'Transcript'); ?>_<?php echo $term . '_' . $year; ?>.pdf' :
+                'Transcripts_<?php echo $term . '_' . $year; ?>.pdf';
 
             html2pdf().set({
                 margin: 10,
                 filename: filename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                image: {
+                    type: 'jpeg',
+                    quality: 0.98
+                },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true
+                },
+                jsPDF: {
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'portrait'
+                }
             }).from(temp).save().then(() => {
                 temp.remove();
                 modal.hide();
@@ -739,4 +769,5 @@ function pointGrade($conn, $points, $grading_system_id) {
         }
     </script>
 </body>
+
 </html>

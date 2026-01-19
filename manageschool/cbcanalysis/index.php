@@ -144,7 +144,7 @@ $stmt->close();
                     </div>
                 </div>
                 <!-- Top/Bottom Students -->
-                <div class="col-md-3">
+                <!-- <div class="col-md-3">
                     <div class="card shadow-sm border-0 h-100 text-center">
                         <div class="card-body d-flex flex-column justify-content-center">
                             <i class="bi bi-trophy display-5 text-primary"></i>
@@ -155,7 +155,7 @@ $stmt->close();
                             </button>
                         </div>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- School Grade Analysis -->
                 <div class="col-md-3">
