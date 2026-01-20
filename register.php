@@ -116,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ['C.R.E.',                    'elective',   'CRE', 313, 0],
                 ['Business Studies',          'elective',   'BST', 565, 0],
                 ['Computer Studies',          'elective',   'COMP', 451, 0],
+                ['Agriculture',               'elective',   'AGR', 443, 0],
+
 
                 // CBC / KJSEA
                 ['English',                   'compulsory', 'ENG', 901, 1],

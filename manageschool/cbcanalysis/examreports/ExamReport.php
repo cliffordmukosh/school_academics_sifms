@@ -35,16 +35,19 @@ if (!$class_info || $class_info['is_cbc'] != 1) {
 $class_name = $class_info['form_name'] ?? 'Unknown Class';
 
 // Run grading procedure
-$stmt = $conn->prepare("CALL cbc_exam_graded(?, ?, ?, ?)");
+// Run grading procedure (CBC version)
+$stmt = $conn->prepare("CALL cbc_generate_exam_aggregates(?, ?, ?, ?)");
 if (!$stmt) {
     die("Failed to prepare procedure call: " . $conn->error);
 }
-$stmt->bind_param("iiii", $school_id, $class_id, $exam_id, $stream_id);
+
+// Correct order: exam_id, school_id, class_id, stream_id
+$stmt->bind_param("iiii", $exam_id, $school_id, $class_id, $stream_id);
+
 if (!$stmt->execute()) {
     die("Procedure execution failed: " . $stmt->error);
 }
 $stmt->close();
-
 // ────────────────────────────────────────────────
 // Load students (single student or whole class/stream)
 // ────────────────────────────────────────────────

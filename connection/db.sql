@@ -1149,3 +1149,40 @@ CREATE TABLE support_messages (
 
 ALTER TABLE support_messages 
 ADD COLUMN sender_email VARCHAR(100) NULL AFTER sender_id;
+
+
+-- Custom Groups Table
+CREATE TABLE custom_groups (
+    group_id INT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    class_id INT NOT NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE,
+    FOREIGN KEY (class_id) REFERENCES classes(class_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_name_class (school_id, name, class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Custom Group Students (Many-to-Many)
+CREATE TABLE custom_group_students (
+    group_student_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    student_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES custom_groups(group_id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_student (group_id, student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Custom Group Subjects (Many-to-Many)
+CREATE TABLE custom_group_subjects (
+    group_subject_id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (group_id) REFERENCES custom_groups(group_id) ON DELETE CASCADE,
+    FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_group_subject (group_id, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                        

@@ -419,22 +419,22 @@ if (!$error_message) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 12px;
+      /* font-family: Arial, Helvetica, sans-serif; */
+      font-size: 10px;
     }
 
     .schoolanalysis_container {
       max-width: 1400px;
       margin: 0 auto;
       background: #fff;
-      padding: 15px;
+      padding: 3px;
     }
 
     .schoolanalysis_header {
       text-align: center;
       border-bottom: 2px solid #0d6efd;
-      padding-bottom: 8px;
-      margin-bottom: 10px;
+      padding-bottom: 3px;
+      margin-bottom: 3px;
     }
 
     .schoolanalysis_title {
@@ -454,9 +454,9 @@ if (!$error_message) {
 
     table.schoolanalysis_table td,
     table.schoolanalysis_table th {
-      padding: 4px 6px;
+      padding: 3px 3px;
       border: 1px solid #dee2e6;
-      font-size: 11px;
+      font-size: 10px;
     }
 
     .no-print {
@@ -481,11 +481,11 @@ if (!$error_message) {
 
       body {
         margin: 0;
-        font-size: 11px;
+        font-size: 9px;
       }
 
       .schoolanalysis_container {
-        padding: 10mm;
+        padding: 7mm;
         margin: 0;
         box-shadow: none;
       }
@@ -493,7 +493,7 @@ if (!$error_message) {
 
     @page {
       size: A4 landscape;
-      margin: 10mm;
+      margin: 9mm;
     }
   </style>
 </head>
@@ -524,20 +524,21 @@ if (!$error_message) {
 
   <div class="schoolanalysis_container">
     <!-- Main Header -->
-    <div class="schoolanalysis_header">
-      <img src="<?= htmlspecialchars($school_logo) ?>" alt="Logo" style="width:100px;height:100px;object-fit:contain;" /><br>
-      <h2 style="color:#0d6efd;"><?= htmlspecialchars($school['name'] ?? 'KEILA HIGH SCHOOL') ?></h2>
-      <p class="fw-bold mb-0">MEAN GRADE SUMMARY – CBC</p>
-      <p class="mb-0"><?= htmlspecialchars("$exam_name • $term • Year $year") ?></p>
-    </div>
+    <div class="class-section mb-5" style="page-break-inside:avoid;">
+      <div class="schoolanalysis_header">
+        <img src="<?= htmlspecialchars($school_logo) ?>" alt="Logo" style="width:100px;height:100px;object-fit:contain;" /><br>
+        <h2 style="color:#0d6efd;"><?= htmlspecialchars($school['name'] ?? 'KEILA HIGH SCHOOL') ?></h2>
+        <p class="fw-bold mb-0">MEAN GRADE SUMMARY – CBC</p>
+        <p class="mb-0"><?= htmlspecialchars("$exam_name • $term • Year $year") ?></p>
+      </div>
 
-    <?php if ($error_message): ?>
-      <div class="alert alert-danger text-center p-3 my-4"><?= htmlspecialchars($error_message) ?></div>
-    <?php elseif (empty($class_data)): ?>
-      <div class="alert alert-warning text-center p-3 my-4">No data available for selected exam/classes</div>
-    <?php else: ?>
-      <?php foreach ($class_data as $cid => $data): ?>
-        <div class="class-section mb-5" style="page-break-inside:avoid;">
+      <?php if ($error_message): ?>
+        <div class="alert alert-danger text-center p-3 my-4"><?= htmlspecialchars($error_message) ?></div>
+      <?php elseif (empty($class_data)): ?>
+        <div class="alert alert-warning text-center p-3 my-4">No data available for selected exam/classes</div>
+      <?php else: ?>
+        <?php foreach ($class_data as $cid => $data): ?>
+
           <div class="schoolanalysis_title mb-3">
             <?= htmlspecialchars($data['form_name']) ?> RESULTS
           </div>
@@ -609,23 +610,23 @@ if (!$error_message) {
               </tbody>
             </table>
           </div>
-        </div>
-      <?php endforeach; ?>
-    <?php endif; ?>
-
-    <!-- Signatures -->
-    <div class="schoolanalysis_footer mt-5 pt-4" style="border-top:2px solid #0d6efd;">
-      <div style="display:flex; justify-content:space-between; font-size:12px;">
-        <div style="width:45%; text-align:center;">
-          <p><b>PREPARED BY</b></p>
-          <p style="border-top:1px solid #666; margin-top:40px;">DEPUTY PRINCIPAL (ACADEMICS)</p>
-        </div>
-        <div style="width:45%; text-align:center;">
-          <p><b>APPROVED BY</b></p>
-          <p style="border-top:1px solid #666; margin-top:40px;">PRINCIPAL</p>
-        </div>
-      </div>
     </div>
+  <?php endforeach; ?>
+<?php endif; ?>
+
+<!-- Signatures -->
+<div class="schoolanalysis_footer mt-5 pt-4" style="border-top:2px solid #0d6efd;">
+  <div style="display:flex; justify-content:space-between; font-size:12px;">
+    <div style="width:45%; text-align:center;">
+      <p><b>PREPARED BY</b></p>
+      <p style="border-top:1px solid #666; margin-top:40px;">DEPUTY PRINCIPAL (ACADEMICS)</p>
+    </div>
+    <div style="width:45%; text-align:center;">
+      <p><b>APPROVED BY</b></p>
+      <p style="border-top:1px solid #666; margin-top:40px;">PRINCIPAL</p>
+    </div>
+  </div>
+</div>
   </div>
 
   <script>

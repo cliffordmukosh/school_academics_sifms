@@ -914,9 +914,240 @@ case 'download_excel_template':
         echo json_encode(['status' => 'error', 'message' => 'Failed to process Excel file: ' . $e->getMessage()]);
     }
     break;
+    case 'get_subjects_by_class':
+        if (!hasPermission($conn, $user_id, $role_id, 'view_subjects', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: view_subjects']);
+            exit;
+        }
+        $class_id = (int)$_POST['class_id'];
+        $stmt = $conn->prepare("
+        SELECT s.subject_id, s.name
+        FROM class_subjects cs
+        JOIN subjects s ON cs.subject_id = s.subject_id
+        WHERE cs.class_id = ? AND s.school_id = ?
+    ");
+        $stmt->bind_param("ii", $class_id, $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $subjects = $result->fetch_all(MYSQLI_ASSOC);
+        echo json_encode(['status' => 'success', 'subjects' => $subjects]);
+        $stmt->close();
+        break;
+
+    case 'get_students_by_class':
+        if (!hasPermission($conn, $user_id, $role_id, 'view_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: view_students']);
+            exit;
+        }
+        $class_id = (int)$_POST['class_id'];
+        $stmt = $conn->prepare("
+        SELECT student_id, full_name, admission_no
+        FROM students
+        WHERE class_id = ? AND school_id = ? AND deleted_at IS NULL
+    ");
+        $stmt->bind_param("ii", $class_id, $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $students = $result->fetch_all(MYSQLI_ASSOC);
+        echo json_encode(['status' => 'success', 'students' => $students]);
+        $stmt->close();
+        break;
+
+    case 'get_custom_groups':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
+            exit;
+        }
+        $stmt = $conn->prepare("
+        SELECT cg.group_id, cg.name, cg.description, c.class_id, c.form_name,
+               GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS subjects,
+               GROUP_CONCAT(DISTINCT cgs.subject_id ORDER BY cgs.subject_id SEPARATOR ',') AS subject_ids,
+               GROUP_CONCAT(DISTINCT st.full_name ORDER BY st.full_name SEPARATOR ', ') AS students,
+               GROUP_CONCAT(DISTINCT cgst.student_id ORDER BY cgst.student_id SEPARATOR ',') AS student_ids
+        FROM custom_groups cg
+        JOIN classes c ON cg.class_id = c.class_id
+        LEFT JOIN custom_group_subjects cgs ON cg.group_id = cgs.group_id
+        LEFT JOIN subjects s ON cgs.subject_id = s.subject_id
+        LEFT JOIN custom_group_students cgst ON cg.group_id = cgst.group_id
+        LEFT JOIN students st ON cgst.student_id = st.student_id
+        WHERE cg.school_id = ?
+        GROUP BY cg.group_id
+    ");
+        $stmt->bind_param("i", $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $groups = $result->fetch_all(MYSQLI_ASSOC);
+        foreach ($groups as &$group) {
+            $group['subjects'] = explode(', ', $group['subjects'] ?? '');
+            $group['subject_ids'] = explode(',', $group['subject_ids'] ?? '');
+            $group['students'] = explode(', ', $group['students'] ?? '');
+            $group['student_ids'] = explode(',', $group['student_ids'] ?? '');
+        }
+        echo json_encode(['status' => 'success', 'groups' => $groups]);
+        $stmt->close();
+        break;
+
+    case 'add_custom_group':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
+            exit;
+        }
+        $name = sanitize($conn, $_POST['name']);
+        $class_id = (int)$_POST['class_id'];
+        $description = sanitize($conn, $_POST['description']);
+        $subject_ids = $_POST['subject_ids'] ?? [];
+        $student_ids = $_POST['student_ids'] ?? [];
+        if (empty($name) || empty($class_id) || empty($subject_ids) || empty($student_ids)) {
+            echo json_encode(['status' => 'error', 'message' => 'Required fields missing']);
+            exit;
+        }
+        // Verify class
+        $stmt = $conn->prepare("SELECT class_id FROM classes WHERE class_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $class_id, $school_id);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows === 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid class']);
+            exit;
+        }
+        $stmt->close();
+        // Insert group
+        $stmt = $conn->prepare("INSERT INTO custom_groups (school_id, name, class_id, description) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("isis", $school_id, $name, $class_id, $description);
+        if (!$stmt->execute()) {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to create group: ' . $conn->error]);
+            exit;
+        }
+        $group_id = $stmt->insert_id;
+        $stmt->close();
+        // Insert subjects
+        foreach ($subject_ids as $subject_id) {
+            $stmt = $conn->prepare("INSERT INTO custom_group_subjects (group_id, subject_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $group_id, $subject_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        // Insert students
+        foreach ($student_ids as $student_id) {
+            $stmt = $conn->prepare("INSERT INTO custom_group_students (group_id, student_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $group_id, $student_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        echo json_encode(['status' => 'success', 'message' => 'Group created successfully']);
+        break;
+
+    case 'edit_custom_group':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
+            exit;
+        }
+        $group_id = (int)$_POST['group_id'];
+        $name = sanitize($conn, $_POST['name']);
+        $class_id = (int)$_POST['class_id'];
+        $description = sanitize($conn, $_POST['description']);
+        $subject_ids = $_POST['subject_ids'] ?? [];
+        $student_ids = $_POST['student_ids'] ?? [];
+        if (empty($group_id) || empty($name) || empty($class_id) || empty($subject_ids) || empty($student_ids)) {
+            echo json_encode(['status' => 'error', 'message' => 'Required fields missing']);
+            exit;
+        }
+        // Verify group
+        $stmt = $conn->prepare("SELECT group_id FROM custom_groups WHERE group_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $group_id, $school_id);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows === 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid group']);
+            exit;
+        }
+        $stmt->close();
+        // Update group
+        $stmt = $conn->prepare("UPDATE custom_groups SET name = ?, class_id = ?, description = ? WHERE group_id = ?");
+        $stmt->bind_param("sisi", $name, $class_id, $description, $group_id);
+        $stmt->execute();
+        $stmt->close();
+        // Clear existing subjects and students
+        $stmt = $conn->prepare("DELETE FROM custom_group_subjects WHERE group_id = ?");
+        $stmt->bind_param("i", $group_id);
+        $stmt->execute();
+        $stmt->close();
+        $stmt = $conn->prepare("DELETE FROM custom_group_students WHERE group_id = ?");
+        $stmt->bind_param("i", $group_id);
+        $stmt->execute();
+        $stmt->close();
+        // Insert new subjects
+        foreach ($subject_ids as $subject_id) {
+            $stmt = $conn->prepare("INSERT INTO custom_group_subjects (group_id, subject_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $group_id, $subject_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        // Insert new students
+        foreach ($student_ids as $student_id) {
+            $stmt = $conn->prepare("INSERT INTO custom_group_students (group_id, student_id) VALUES (?, ?)");
+            $stmt->bind_param("ii", $group_id, $student_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        echo json_encode(['status' => 'success', 'message' => 'Group updated successfully']);
+        break;
+
+    case 'delete_custom_group':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
+            exit;
+        }
+        $group_id = (int)$_POST['group_id'];
+        $stmt = $conn->prepare("DELETE FROM custom_groups WHERE group_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $group_id, $school_id);
+        if ($stmt->execute()) {
+            echo json_encode(['status' => 'success', 'message' => 'Group deleted successfully']);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Failed to delete group: ' . $conn->error]);
+        }
+        $stmt->close();
+        break;
+    case 'get_students_in_group':
+        if (!hasPermission($conn, $user_id, $role_id, 'view_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
+            exit;
+        }
+
+        $group_id = (int)$_POST['group_id'];
+
+        $stmt = $conn->prepare("
+        SELECT 
+            s.student_id, 
+            s.full_name, 
+            s.admission_no
+        FROM custom_group_students cgs
+        JOIN students s ON cgs.student_id = s.student_id
+        WHERE cgs.group_id = ? 
+          AND s.school_id = ?
+          AND s.deleted_at IS NULL
+        ORDER BY s.full_name ASC
+    ");
+
+        $stmt->bind_param("ii", $group_id, $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $students = [];
+        while ($row = $result->fetch_assoc()) {
+            $students[] = $row;
+        }
+
+        echo json_encode([
+            'status'   => 'success',
+            'students' => $students
+        ]);
+
+        $stmt->close();
+        break;
 
     default:
         echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
         break;
 }
+
+
 ?>

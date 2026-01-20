@@ -526,7 +526,13 @@ switch ($action) {
         }
 
         // Fetch subjects
-        $stmt = $conn->prepare("SELECT subject_id, name FROM subjects WHERE school_id = ? AND deleted_at IS NULL ORDER BY name");
+        $stmt = $conn->prepare("
+    SELECT subject_id, name, is_cbc 
+    FROM subjects 
+    WHERE school_id = ? 
+    AND deleted_at IS NULL 
+    ORDER BY name
+");
         $stmt->bind_param("i", $school_id);
         $stmt->execute();
         $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

@@ -828,7 +828,174 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             error_log("get_school_analysis_exams: Fetched " . count($exams) . " exams for class_id=$class_id, term=$term, year=$year");
             echo json_encode(['status' => 'success', 'exams' => $exams]);
             break;
+        case 'get_custom_groups_and_exams':
+            // Fetch all custom groups for this school
+            $stmt = $conn->prepare("
+        SELECT group_id, name
+        FROM custom_groups
+        WHERE school_id = ?
+        ORDER BY name
+    ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
 
+            // Fetch all closed exams (you can filter further if needed)
+            $stmt = $conn->prepare("
+        SELECT exam_id, exam_name, term
+        FROM exams
+        WHERE school_id = ? AND status = 'closed'
+        ORDER BY created_at DESC
+    ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $exams = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status' => 'success',
+                'groups' => $groups,
+                'exams'  => $exams
+            ]);
+            break;
+
+        case 'get_group_subject_results':
+            $group_id = (int)($_POST['group_id'] ?? 0);
+            $exam_id  = (int)($_POST['exam_id'] ?? 0);
+
+            if ($group_id <= 0 || $exam_id <= 0) {
+                echo json_encode(['status' => 'error', 'message' => 'Group and Exam are required']);
+                break;
+            }
+
+            // Group name
+            $stmt = $conn->prepare("SELECT name FROM custom_groups WHERE group_id = ? AND school_id = ?");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            $group = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            $group_name = $group['name'] ?? 'Unknown Group';
+
+            // Exam name + term
+            $stmt = $conn->prepare("SELECT exam_name, term FROM exams WHERE exam_id = ? AND school_id = ?");
+            $stmt->bind_param("ii", $exam_id, $school_id);
+            $stmt->execute();
+            $exam = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            $exam_name = $exam['exam_name'] ?? 'Unknown Exam';
+            $term = $exam['term'] ?? 'N/A';
+
+            // Subjects in this group
+            $stmt = $conn->prepare("
+        SELECT s.subject_id, s.name
+        FROM custom_group_subjects cgs
+        JOIN subjects s ON cgs.subject_id = s.subject_id
+        WHERE cgs.group_id = ?
+        ORDER BY s.name
+    ");
+            $stmt->bind_param("i", $group_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            // Students in this group
+            $stmt = $conn->prepare("
+        SELECT s.student_id, s.full_name, s.admission_no
+        FROM custom_group_students cgs
+        JOIN students s ON cgs.student_id = s.student_id
+        WHERE cgs.group_id = ? AND s.school_id = ?
+        ORDER BY s.full_name
+    ");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $total_students = count($students);
+
+            if ($total_students === 0) {
+                echo json_encode([
+                    'status'       => 'success',
+                    'results'      => [],
+                    'subjects'     => $subjects,
+                    'group_name'   => $group_name,
+                    'exam_name'    => $exam_name,
+                    'term'         => $term,
+                    'school_name'  => $school['name'] ?? 'School',
+                    'school_logo'  => $school_logo ?? '',
+                    'total_students' => 0
+                ]);
+                break;
+            }
+
+            // Get subject scores for this exam
+            $student_ids = array_column($students, 'student_id');
+            $placeholders = implode(',', array_fill(0, count($student_ids), '?'));
+            $stmt = $conn->prepare("
+        SELECT esa.student_id, esa.subject_id, esa.subject_score
+        FROM exam_subject_aggregates esa
+        WHERE esa.exam_id = ? AND esa.student_id IN ($placeholders)
+    ");
+            $params = array_merge([$exam_id], $student_ids);
+            $types = 'i' . str_repeat('i', count($student_ids));
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $scores_result = $stmt->get_result();
+            $scores = [];
+            while ($row = $scores_result->fetch_assoc()) {
+                $scores[$row['student_id']][$row['subject_id']] = $row['subject_score'];
+            }
+            $stmt->close();
+
+            // Build report data
+            $results = [];
+            foreach ($students as $stu) {
+                $row = [
+                    'full_name'     => $stu['full_name'],
+                    'admission_no'  => $stu['admission_no'],
+                    'subjects'      => []
+                ];
+                foreach ($subjects as $sub) {
+                    $sub_id = $sub['subject_id'];
+                    $score = $scores[$stu['student_id']][$sub_id] ?? null;
+                    $row['subjects'][$sub_id] = ['score' => $score];
+                }
+                $results[] = $row;
+            }
+
+            // Calculate ranks per subject (only within group)
+            foreach ($subjects as $sub) {
+                $sub_id = $sub['subject_id'];
+                $subject_scores = [];
+                foreach ($results as $idx => $row) {
+                    $score = $row['subjects'][$sub_id]['score'];
+                    if ($score !== null) {
+                        $subject_scores[] = ['idx' => $idx, 'score' => $score];
+                    }
+                }
+                usort($subject_scores, fn($a, $b) => $b['score'] <=> $a['score']);
+                $rank = 1;
+                $prev = null;
+                foreach ($subject_scores as $pos => $entry) {
+                    if ($prev !== null && $entry['score'] < $prev) $rank = $pos + 1;
+                    $results[$entry['idx']]['subjects'][$sub_id]['rank'] = $rank;
+                    $prev = $entry['score'];
+                }
+            }
+
+            echo json_encode([
+                'status'         => 'success',
+                'results'        => $results,
+                'subjects'       => $subjects,
+                'group_name'     => $group_name,
+                'exam_name'      => $exam_name,
+                'term'           => $term,
+                'school_name'    => $school['name'] ?? 'School',
+                'school_logo'    => $school_logo ?? '',
+                'total_students' => $total_students
+            ]);
+            break;
         default:
             error_log("Invalid action received: $action");
             echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
