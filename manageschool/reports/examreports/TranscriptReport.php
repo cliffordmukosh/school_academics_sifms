@@ -387,17 +387,32 @@ function pointGrade($conn, $points, $grading_system_id) {
         $stmt->close();
 
         if (!$student_result) continue;
-
         $stmt = $conn->prepare("
-            SELECT t.subject_id, s.name as subject_name, t.subject_mean, t.subject_grade, t.subject_teacher_remark_text,
-                   GROUP_CONCAT(DISTINCT u.first_name SEPARATOR ', ') as teacher_names
-            FROM term_subject_totals t
-            JOIN subjects s ON t.subject_id = s.subject_id
-            LEFT JOIN teacher_subjects ts ON t.subject_id = ts.subject_id AND t.class_id = ts.class_id AND t.school_id = ts.school_id
-            LEFT JOIN users u ON ts.user_id = u.user_id
-            WHERE t.school_id = ? AND t.student_id = ? AND t.class_id = ? AND t.term = ? AND t.year = ?
-            GROUP BY t.subject_id
-        ");
+    SELECT 
+        t.subject_id, 
+        s.name as subject_name, 
+        t.subject_mean, 
+        t.subject_grade, 
+        t.subject_teacher_remark_text,
+        GROUP_CONCAT(DISTINCT u.first_name SEPARATOR ', ') as teacher_names
+    FROM term_subject_totals t
+    JOIN subjects s ON t.subject_id = s.subject_id
+    LEFT JOIN teacher_subjects ts 
+           ON  ts.school_id  = t.school_id
+           AND ts.subject_id = t.subject_id
+           AND (
+                 (ts.class_id = t.class_id AND ts.stream_id = t.stream_id)          -- ← stream specific (priority 1)
+              OR (ts.class_id = t.class_id AND ts.stream_id IS NULL)               -- ← class-wide     (priority 2)
+              -- OR (ts.class_id IS NULL AND ts.stream_id IS NULL)                 -- ← school-wide     (priority 3 – usually comment out)
+           )
+    LEFT JOIN users u ON ts.user_id = u.user_id
+    WHERE t.school_id = ? 
+      AND t.student_id = ? 
+      AND t.class_id = ? 
+      AND t.term = ? 
+      AND t.year = ?
+    GROUP BY t.subject_id
+");
         $stmt->bind_param("iiisi", $school_id, $student['student_id'], $class_id, $term, $year);
         $stmt->execute();
         $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

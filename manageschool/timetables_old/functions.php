@@ -752,21 +752,7 @@ function tt_save_global_times($times_json) {
     $school_id = tt_school_id();
     if (!$conn || $school_id <= 0) return false;
 
-    // Accept: array, JSON object string, or double-encoded JSON string
-    $times = null;
-    if (is_array($times_json)) {
-        $times = $times_json;
-    } else {
-        $times = json_decode((string)$times_json, true);
-
-        // If it was JSON-stringified twice, decode again
-        if (is_string($times)) {
-            $times2 = json_decode($times, true);
-            if (is_array($times2)) $times = $times2;
-        }
-    }
-
-    // If we can't decode times at all, treat as failure (edit.php expects a boolean)
+    $times = json_decode((string)$times_json, true);
     if (!is_array($times)) return false;
 
     $tset_id = tt_get_or_create_timetable_setting_id($school_id);
@@ -805,8 +791,8 @@ function tt_save_global_times($times_json) {
         $stmt->close();
     }
 
-    // Update timetable_settings start/end using p1 start and p10 end if parseable
-    $p1  = tt_parse_time_range($times['p1'] ?? '');
+    // update timetable_settings start/end using p1 start and p10 end if parseable
+    $p1 = tt_parse_time_range($times['p1'] ?? '');
     $p10 = tt_parse_time_range($times['p10'] ?? '');
     if ($p1 && $p10) {
         $start = $p1[0];
@@ -820,10 +806,8 @@ function tt_save_global_times($times_json) {
         }
     }
 
-    // IMPORTANT: return true if payload was valid; don't fail just because user didn't change times
     return true;
 }
-
 
 /**
  * Get streams for a given class (scoped to school)
@@ -1053,21 +1037,6 @@ function tt_get_teacher_subject_map_for_stream(int $stream_id): array {
     return $map;
 }
 
-/**
- * Save timetable for stream from payload JSON.
- *
- * Accepts payload shapes:
- *  A) { meta: {...}, days: {...} }   (edit.php contract)
- *  B) { days: {...} }                (legacy)
- *  C) { grid: { days: {...} } }      (defensive)
- *
- * For each cell, subject_id is preferred; if missing, we resolve from subject label/initial.
- * teacher_id is optional; if missing, we resolve from teacher label best-effort, else NULL.
- *
- * CRITICAL SAFETY:
- * - We DO NOT delete existing timetable unless we have at least ONE valid lesson row to insert.
- * - We return false if we inserted 0 rows (prevents "Saved successfully" lies).
- */
 function tt_save_timetable_for_stream($stream_id, $payload_json) {
     $conn = tt_db();
     $school_id = tt_school_id();
@@ -1076,19 +1045,7 @@ function tt_save_timetable_for_stream($stream_id, $payload_json) {
     $stream_id = (int)$stream_id;
     if ($stream_id <= 0) return false;
 
-    // Decode payload (accept array or JSON string)
-    $payload = null;
-    if (is_array($payload_json)) {
-        $payload = $payload_json;
-    } else {
-        $payload = json_decode((string)$payload_json, true);
-
-        // if double-encoded, decode again
-        if (is_string($payload)) {
-            $payload2 = json_decode($payload, true);
-            if (is_array($payload2)) $payload = $payload2;
-        }
-    }
+    $payload = json_decode((string)$payload_json, true);
     if (!is_array($payload)) return false;
 
     $tset_id = tt_get_or_create_timetable_setting_id($school_id);
@@ -1109,184 +1066,67 @@ function tt_save_timetable_for_stream($stream_id, $payload_json) {
         $stmtSlots->close();
     }
 
-    $dayMap    = tt_days_map();
+    $dayMap = tt_days_map();
     $colToSlot = tt_col_to_slot_number();
 
-    // Normalize days source
-    $days = [];
-    if (isset($payload['days']) && is_array($payload['days'])) {
-        $days = $payload['days'];
-    } elseif (isset($payload['grid']['days']) && is_array($payload['grid']['days'])) {
-        $days = $payload['grid']['days'];
-    } elseif (isset($payload['grid']) && is_array($payload['grid']) && isset($payload['grid']['days']) && is_array($payload['grid']['days'])) {
-        $days = $payload['grid']['days'];
-    } elseif (isset($payload['days']) && is_array($payload['days'])) {
-        $days = $payload['days'];
-    }
-
-    // Pre-build rows; if we can't build ANY, do not wipe existing timetable
-    $rows = [];
-
-    foreach ($days as $dayKey => $cols) {
-        if (!isset($dayMap[$dayKey]) || !is_array($cols)) continue;
-        $dayFull = $dayMap[$dayKey];
-
-        foreach ($cols as $colKey => $cell) {
-            if (!isset($colToSlot[$colKey])) continue;
-
-            $slot_number  = (int)$colToSlot[$colKey];
-            $time_slot_id = $slotMap[$slot_number] ?? null;
-            if (!$time_slot_id) continue;
-
-            if (!is_array($cell)) continue;
-
-            // Prefer IDs from payload
-            $subject_id = (int)($cell['subject_id'] ?? $cell['subjectId'] ?? 0);
-            $teacher_id = (int)($cell['teacher_id'] ?? $cell['teacherId'] ?? 0);
-
-            // Resolve subject_id from label if missing
-            if ($subject_id <= 0) {
-                $subject_label = trim((string)($cell['subject'] ?? $cell['subject_name'] ?? ''));
-                if ($subject_label !== '') {
-                    $resolved = tt_resolve_subject_id($school_id, $subject_label);
-                    if ($resolved) $subject_id = (int)$resolved;
-                }
-            }
-
-            // subject_id is REQUIRED for a lesson
-            if ($subject_id <= 0) continue;
-
-            // Resolve teacher_id from label (optional)
-            if ($teacher_id <= 0) {
-                $teacher_label = trim((string)($cell['teacher'] ?? $cell['teacher_name'] ?? ''));
-                if ($teacher_label !== '') {
-                    $resolvedT = tt_resolve_teacher_id($school_id, $teacher_label);
-                    if ($resolvedT) $teacher_id = (int)$resolvedT;
-                }
-            }
-            if ($teacher_id <= 0) $teacher_id = null;
-
-            $rows[] = [
-                'dayFull'      => $dayFull,
-                'time_slot_id' => (int)$time_slot_id,
-                'subject_id'   => (int)$subject_id,
-                'teacher_id'   => $teacher_id
-            ];
-        }
-    }
-
-    if (count($rows) === 0) {
-        // Nothing valid to save -> do not wipe existing timetable
-        return false;
-    }
-
-    $ok = true;
-    $inserted = 0;
-
-    $conn->begin_transaction();
-
-    // delete existing
+    // clear existing for THIS stream
     $stmtDel = $conn->prepare("DELETE FROM timetables WHERE school_id=? AND stream_id=? AND timetable_setting_id=?");
-    if (!$stmtDel) {
-        $conn->rollback();
-        return false;
+    if ($stmtDel) {
+        $stmtDel->bind_param("iii", $school_id, $stream_id, $tset_id);
+        $stmtDel->execute();
+        $stmtDel->close();
     }
-    $stmtDel->bind_param("iii", $school_id, $stream_id, $tset_id);
-    $ok = $ok && (bool)$stmtDel->execute();
-    $stmtDel->close();
+
+    $days = $payload['days'] ?? [];
+    if (!is_array($days)) $days = [];
 
     $stmtIns = $conn->prepare("
         INSERT INTO timetables
         (timetable_setting_id, school_id, stream_id, day_of_week, time_slot_id, subject_id, teacher_id, classroom_id, notes)
         VALUES (?,?,?,?,?,?,?,?,?)
     ");
-    if (!$stmtIns) {
-        $conn->rollback();
-        return false;
-    }
+    if (!$stmtIns) return false;
 
-    foreach ($rows as $r) {
-        $dayFull      = $r['dayFull'];
-        $time_slot_id = $r['time_slot_id'];
-        $subject_id   = $r['subject_id'];
-        $teacher_id   = $r['teacher_id']; // nullable
+    foreach ($days as $dayKey => $cols) {
+        if (!isset($dayMap[$dayKey])) continue;
+        $dayFull = $dayMap[$dayKey];
+        if (!is_array($cols)) continue;
 
-        $classroom_id = null;
-        $notes = null;
+        foreach ($cols as $colKey => $cell) {
+            if (!isset($colToSlot[$colKey])) continue;
 
-        // Note: teacher_id can be NULL; mysqli will send NULL fine
-        $stmtIns->bind_param(
-            "iiisiiiis",
-            $tset_id,
-            $school_id,
-            $stream_id,
-            $dayFull,
-            $time_slot_id,
-            $subject_id,
-            $teacher_id,
-            $classroom_id,
-            $notes
-        );
+            $slot_number = (int)$colToSlot[$colKey];
+            $time_slot_id = $slotMap[$slot_number] ?? null;
+            if (!$time_slot_id) continue;
 
-        $execOk = (bool)$stmtIns->execute();
-        $ok = $ok && $execOk;
-        if ($execOk) $inserted++;
+            // subject_id must exist
+            $subject_id = (int)(is_array($cell) ? ($cell['subject_id'] ?? 0) : 0);
+            if ($subject_id <= 0) continue;
+
+            // teacher is auto-selected in UI already; keep teacher_id from dataset
+            $teacher_id = (int)(is_array($cell) ? ($cell['teacher_id'] ?? 0) : 0);
+
+            $classroom_id = null;
+            $notes = null;
+
+            $stmtIns->bind_param(
+                "iiisiiiis",
+                $tset_id,
+                $school_id,
+                $stream_id,
+                $dayFull,
+                $time_slot_id,
+                $subject_id,
+                $teacher_id,
+                $classroom_id,
+                $notes
+            );
+
+            $stmtIns->execute();
+        }
     }
 
     $stmtIns->close();
-
-    // If inserts failed or inserted 0 rows, rollback so we never "wipe to blank"
-    if (!$ok || $inserted === 0) {
-        $conn->rollback();
-        return false;
-    }
-
-    $conn->commit();
     return true;
 }
 
-
-/**
- * Subjects for a given class (STRICT: class_subjects-driven)
- */
-function tt_get_subjects_for_class(int $class_id): array {
-    $conn = tt_db();
-    $school_id = tt_school_id();
-
-    if (!$conn || $school_id <= 0 || $class_id <= 0) {
-        return [];
-    }
-
-    $sql = "
-        SELECT
-            s.subject_id AS id,
-            s.name AS name,
-            COALESCE(s.subject_initial, '') AS initial
-        FROM class_subjects cs
-        JOIN subjects s ON s.subject_id = cs.subject_id
-        JOIN classes c ON c.class_id = cs.class_id
-        WHERE c.school_id = ?
-          AND cs.class_id = ?
-          AND s.deleted_at IS NULL
-        ORDER BY s.name ASC
-    ";
-
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) return [];
-
-    $stmt->bind_param("ii", $school_id, $class_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
-    $out = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $out[] = [
-            'id'      => (string)$row['id'],
-            'name'    => (string)$row['name'],
-            'initial' => (string)$row['initial'],
-        ];
-    }
-
-    $stmt->close();
-    return $out;
-}

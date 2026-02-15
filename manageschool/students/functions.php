@@ -933,18 +933,21 @@ case 'download_excel_template':
         echo json_encode(['status' => 'success', 'subjects' => $subjects]);
         $stmt->close();
         break;
-
     case 'get_students_by_class':
         if (!hasPermission($conn, $user_id, $role_id, 'view_students', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: view_students']);
             exit;
         }
+
         $class_id = (int)$_POST['class_id'];
+
         $stmt = $conn->prepare("
         SELECT student_id, full_name, admission_no
         FROM students
         WHERE class_id = ? AND school_id = ? AND deleted_at IS NULL
+        ORDER BY admission_no ASC   /* ← Add this line */
     ");
+
         $stmt->bind_param("ii", $class_id, $school_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -952,7 +955,6 @@ case 'download_excel_template':
         echo json_encode(['status' => 'success', 'students' => $students]);
         $stmt->close();
         break;
-
     case 'get_custom_groups':
         if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);

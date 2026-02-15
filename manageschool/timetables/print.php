@@ -1,84 +1,99 @@
 <?php
 require_once __DIR__ . '/../../apis/auth_middleware.php';
+require_once __DIR__ . '/functions.php';
 
 /**
- * Shared Timetable Print Engine
- * Usage (from any timetable page):
- *   <script src="print.php?asset=tt_print"></script>
- *   window.TTPrint.printTimetable(); // prints ONLY #ttPrintArea
+ * print.php serves TWO roles:
+ *  1) UI page: "Class Timetables" (links to subject/teacher prints)
+ *  2) Shared print engine asset: print.php?asset=tt_print
+ *
+ * IMPORTANT CHANGE:
+ *  - NO new tab / NO about:blank
+ *  - Printing is done via a hidden iframe (in-page), and only the requested container prints.
  */
+
 if (isset($_GET['asset']) && $_GET['asset'] === 'tt_print') {
     header('Content-Type: application/javascript; charset=UTF-8');
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-    header('Pragma: no-cache');
 
-    echo <<<JS
+    echo <<<'JS'
 (function(){
   "use strict";
 
-  function escapeHtml(s){
-    return String(s || "")
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#039;");
+  function $(sel, root){
+    return (root || document).querySelector(sel);
   }
 
-  function getTimetableStyles(){
-    // timetable_grid.php provides <style id="ttComponentStyles">...</style>
+  function safeTitle(s){
+    return String(s || "Print")
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim() || "Print";
+  }
+
+  function collectComponentStyles(){
+    // Prefer timetable component styles when present
     var el = document.getElementById("ttComponentStyles");
-    return el ? (el.innerHTML || "") : "";
+    if (el && el.innerHTML) return String(el.innerHTML);
+
+    // Fallback: gather inline <style> blocks (best-effort)
+    var css = "";
+    var styles = document.querySelectorAll("style");
+    styles.forEach(function(s){
+      if (s && s.innerHTML) css += "\n" + s.innerHTML;
+    });
+    return css;
   }
 
-  function buildPrintHtml(title, bodyHtml, extraCss){
-    var safeTitle = escapeHtml(title || "Timetable Print");
-    var styles = getTimetableStyles();
+  function buildPrintHtml(opts, bodyHtml){
+    opts = opts || {};
+    var title = safeTitle(opts.title || "Print");
+    var orientation = (opts.orientation || "landscape").toLowerCase() === "portrait" ? "portrait" : "landscape";
+    var pageSize = opts.pageSize || "A4";
+    var margin = opts.margin || "8mm";
+    var extraCss = String(opts.extraCss || "");
 
-    // Hard print overrides:
-    // - hide placeholders
-    // - hide toolbars/buttons
-    // - remove borders/shadows around wrappers
-    // - force clean page
+    var baseCss = collectComponentStyles();
+
+    // Hard reset + print safety rules
     var hardCss = `
-      [data-placeholder]:empty::before{ content:"" !important; } // this ndio inaficha placeholders... you can disable it if you want
-      .tt-toolbar{ display:none !important; }
-      .tt-page-wrap{ padding:0 !important; }
-
-      /* Auto-fit (slight scale down) to avoid clipping on A4 landscape */
-      .tt-print-root{
-        transform: scale(0.96);
-        transform-origin: top left;
-        width: calc(100% / 0.96);
+      html, body{
+        margin:0 !important;
+        padding:0 !important;
+        background:#fff !important;
+        color:#111 !important;
       }
 
+      /* Hide any placeholder text when printing */
+      [data-placeholder]:empty::before{ content:"" !important; }
+
+      /* Avoid weird spacing breaks */
+      *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      /* Timetable-specific cleanup (won't hurt other reports) */
+      .tt-toolbar{ display:none !important; }
+      .tt-wrap > :not(.tt-page-wrap){ display:none !important; }
+
+      .tt-page-wrap,
       .tt-paper{
+        margin:0 !important;
+        padding:0 !important;
+        background:#fff !important;
         border:none !important;
         box-shadow:none !important;
         border-radius:0 !important;
-        width:auto !important;
-        padding:0 !important;
-        margin:0 !important;
       }
 
-      /* Slightly thicker grid lines on paper */
-      table.tt-timetable{ border-width:3px !important; }
-      table.tt-timetable th, table.tt-timetable td{ border-width:2px !important; }
+      /* Page control */
+      @page{ size: ${pageSize} ${orientation}; margin: ${margin}; }
+    `;
 
-      /* Also thicken simple report tables (subject allocations) */
-      table{ border-collapse:collapse; }
-      th,td{ border-width:1.4px; }
-
-      .tt-edit-inline,
-      .tt-subject,
-      .tt-teacher-code{
-        background:transparent !important;
-        box-shadow:none !important;
-        border-color:transparent !important;
-        outline:none !important;
+    // Wrap to keep a predictable printable "sheet"
+    var wrapCss = `
+      .tt-print-root{
+        width: 100%;
+        box-sizing: border-box;
       }
-
-      @page{ size: A4 landscape; margin: 8mm; }
     `;
 
     return `<!doctype html>
@@ -86,61 +101,118 @@ if (isset($_GET['asset']) && $_GET['asset'] === 'tt_print') {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>\${safeTitle}</title>
-<style>\${styles}</style>
-<style>\${hardCss}</style>
-<style>\${extraCss || ""}</style>
+<title>${title}</title>
+<style>${baseCss}</style>
+<style>${hardCss}</style>
+<style>${wrapCss}</style>
+<style>${extraCss}</style>
 </head>
-<body style="margin:0;background:#fff;">
-  <div class="tt-print-root">\${bodyHtml}</div>
+<body>
+  <div class="tt-print-root">${bodyHtml}</div>
 </body>
 </html>`;
   }
 
-  function openAndPrint(html){
-    var win = window.open("", "_blank", "noopener,noreferrer");
-    if(!win){
-      // Popup blocked; fallback
-      window.print();
-      return;
-    }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-
-    // Print after render
-    setTimeout(function(){
-      win.print();
-      setTimeout(function(){ win.close(); }, 200);
-    }, 150);
+  function createHiddenIframe(){
+    var iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+    return iframe;
   }
 
+  function printHtmlInIframe(html, opts){
+    opts = opts || {};
+    return new Promise(function(resolve){
+      try{
+        var iframe = createHiddenIframe();
+        var win = iframe.contentWindow;
+        var doc = win.document;
+
+        var cleaned = false;
+        function cleanup(){
+          if (cleaned) return;
+          cleaned = true;
+          try{ iframe.remove(); } catch(e){ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }
+          resolve(true);
+        }
+
+        // Cleanup after print (best-effort)
+        win.onafterprint = function(){
+          setTimeout(cleanup, 50);
+        };
+
+        doc.open();
+        doc.write(html);
+        doc.close();
+
+        // Give the browser a moment to layout
+        setTimeout(function(){
+          try{
+            win.focus();
+            win.print();
+
+            // Fallback cleanup if onafterprint doesn't fire
+            setTimeout(cleanup, 1500);
+          }catch(e){
+            cleanup();
+          }
+        }, 120);
+
+      }catch(e){
+        resolve(false);
+      }
+    });
+  }
+
+  /**
+   * Public API
+   * window.TTPrint.printTimetable({
+   *   title: "My Report",
+   *   areaId: "subjectPrintArea",
+   *   orientation: "portrait" | "landscape",
+   *   pageSize: "A4",
+   *   margin: "8mm",
+   *   extraCss: "..."
+   * })
+   */
   function printTimetable(opts){
     opts = opts || {};
-    var title = opts.title || "Timetable Print";
     var areaId = opts.areaId || "ttPrintArea";
 
     var area = document.getElementById(areaId);
-    if(!area){
-      // fallback: try timetable container
-      var alt = document.querySelector("#ttPrintArea") || document.querySelector(".tt-paper") || document.body;
-      area = alt;
+    if (!area) {
+      // fallback: try common timetable container
+      area = document.querySelector("#ttPrintArea") || document.querySelector(".tt-paper") || null;
     }
 
-    // Print ONLY the timetable area content
-    var html = buildPrintHtml(title, area.outerHTML, opts.extraCss || "");
-    openAndPrint(html);
+    if (!area) {
+      // last fallback: print current page
+      window.print();
+      return;
+    }
+
+    var html = buildPrintHtml(opts, area.outerHTML);
+    printHtmlInIframe(html, opts);
   }
 
   window.TTPrint = window.TTPrint || {};
   window.TTPrint.printTimetable = printTimetable;
+
 })();
 JS;
 
     exit;
 }
 
+// ---- UI PAGE (unchanged) ----
 require_once __DIR__ . '/../header.php';
 require_once __DIR__ . '/../sidebar.php';
 ?>

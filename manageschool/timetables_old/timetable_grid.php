@@ -1,34 +1,12 @@
 <?php
 /**
  * Timetable Grid Component (Canonical)
- * - Full width inside card
+ * - Full width inside card (no centered fixed paper)
  * - Print button prints ONLY the timetable area (#ttPrintArea)
  * - Placeholders DO NOT print (empty prints blank)
- * - Exposes TT API expected by edit.php:
- *   TT.getData(), TT.setData(), TT.getTimes(), TT.setTimes(), TT.clear(), TT.build()
- *
- * PRINT POLICY:
- * - NO POPUPS, NO about:blank
- * - Uses in-page window.print() + @media print isolation
- *
- * IMPORTANT:
- * - This file must NOT echo raw JS text outside <script> tags.
- * - This file must NOT depend on variables from edit.php unless explicitly injected.
- *
- * LOGGING:
- * - Client-side logging (console) is ALWAYS available (toggle DEBUG = true).
- *   If edit.php included this component, tt_edit_log() will exist and we log include + render events.
+ * - Editable UI remains (contenteditable) unless locked by parent page
  */
 ?>
-
-<?php if (function_exists('tt_edit_log')): ?>
-<?php
-  tt_edit_log('INFO', 'TT_GRID_INCLUDE_START', [
-    'component' => 'timetable_grid.php',
-    'note' => 'Timetable grid component included.'
-  ]);
-?>
-<?php endif; ?>
 
 <style id="ttComponentStyles">
   :root{
@@ -42,34 +20,33 @@
     --ui-text:#111;
     --ui-sub:#555;
 
-    /* Responsive sizing (screen) */
-    --tt-left-col:  clamp(72px, 12vw, 140px);
+    /* --- Responsive sizing (screen) --- */
+    --tt-left-col: clamp(88px, 16vw, 140px);
 
-    --tt-col-lesson: clamp(44px, 6.2vw, 86px);
-    --tt-col-break:  clamp(44px, 6.2vw, 86px);
-    --tt-col-lunch:  clamp(52px, 6.8vw, 98px);
+    --tt-col-lesson: clamp(58px, 7.6vw, 86px);
+    --tt-col-break:  clamp(58px, 7.6vw, 86px);
+    --tt-col-lunch:  clamp(72px, 8.6vw, 98px);
 
-    --tt-phead-h:    clamp(38px, 5.6vw, 52px);
-    --tt-slot-h:     clamp(72px, 9.6vw, 112px);
+    --tt-phead-h:   clamp(40px, 6.2vw, 52px);
+    --tt-slot-h:    clamp(78px, 10.8vw, 112px);
 
-    --tt-day-font:   clamp(18px, 4.6vw, 54px);
-    --tt-day-pad-y:  clamp(8px,  2.2vw, 20px);
+    --tt-day-font:  clamp(22px, 6vw, 54px);
+    --tt-day-pad-y: clamp(10px, 2.8vw, 20px);
 
-    --tt-term-font:  clamp(13px, 2.2vw, 20px);
-    --tt-form-font:  clamp(22px, 5.6vw, 56px);
+    --tt-term-font: clamp(14px, 2.6vw, 20px);
+    --tt-form-font: clamp(28px, 7.2vw, 56px);
 
-    --tt-pnum-font:  clamp(11px, 1.9vw, 22px);
-    --tt-ptime-font: clamp(9px,  1.4vw, 10px);
+    --tt-pnum-font: clamp(12px, 2.2vw, 22px);
+    --tt-ptime-font: clamp(9px, 1.4vw, 10px);
 
-    --tt-break-font: clamp(11px, 1.7vw, 18px);
+    --tt-break-font: clamp(12px, 1.9vw, 18px);
 
-    --tt-subject-font: clamp(14px, 2.6vw, 30px);
+    --tt-subject-font: clamp(16px, 3.2vw, 30px);
     --tt-teacher-font: clamp(10px, 1.6vw, 11px);
 
-    --tt-paper-pad:  clamp(10px, 1.8vw, 14px);
+    --tt-paper-pad: clamp(10px, 2.4vw, 14px);
 
-    /* print scaling to avoid spilling to page 2 */
-    --tt-print-scale: 0.96;
+
   }
 
   .tt-wrap{ width:100%; }
@@ -123,9 +100,8 @@
   }
   .tt-btn.primary:hover{ background:#000; }
 
-  /* Remove extra spacing around grid inside card */
   .tt-page-wrap{
-    padding: 0;
+    padding: 14px;
     width: 100%;
   }
 
@@ -136,10 +112,10 @@
     padding: var(--tt-paper-pad) var(--tt-paper-pad) 10px;
     border-radius:12px;
 
-    overflow-x:clip; /* desktop/tablet must fit */
-    touch-action: pan-x pan-y;
-    overscroll-behavior: contain;
+    overflow-x:auto;
+    -webkit-overflow-scrolling: touch;
   }
+
 
   .tt-topline{
     display:flex;
@@ -162,11 +138,13 @@
   }
   .tt-term{
     font-size: var(--tt-term-font);
+
     font-weight:800;
     letter-spacing:1px;
   }
   .tt-form{
     font-size: var(--tt-form-font);
+
     font-weight:900;
     letter-spacing:1px;
     line-height:1.0;
@@ -194,10 +172,6 @@
     table-layout:fixed;
     border:2.5px solid var(--grid);
   }
-
-  /* Override inline first col width in HTML colgroup */
-  table.tt-timetable colgroup col:first-child{ width: var(--tt-left-col) !important; }
-
   table.tt-timetable th, table.tt-timetable td{
     border:1.6px solid var(--grid);
     vertical-align:middle;
@@ -208,7 +182,7 @@
   .tt-left-header-blank{
     width: var(--tt-left-col);
     border-right:2.2px solid var(--grid) !important;
-    background:#fafafa;
+    background:#fff;
   }
   .tt-day-col{
     width: var(--tt-left-col);
@@ -219,7 +193,6 @@
     font-weight:900;
     letter-spacing:.5px;
     line-height:1;
-    background:#fafafa;
   }
   .tt-day-label{
     display:inline-block;
@@ -233,7 +206,6 @@
     font-weight:900;
     padding-top:5px !important;
     position:relative;
-    background:#fafafa;
   }
 
   .tt-pnum{ font-size: var(--tt-pnum-font); font-weight:900; }
@@ -255,13 +227,16 @@
   .tt-col-break  { width: var(--tt-col-break); }
   .tt-col-lunch  { width: var(--tt-col-lunch); }
 
+
   .tt-slot{
     height: var(--tt-slot-h);
+
     position:relative;
     padding:10px 6px 22px !important;
     text-align:center;
     overflow:hidden;
   }
+  .tt-slot.breakcell, .tt-slot.lunchcell{ background:#fff; }
 
   .tt-slot-inner{
     display:flex;
@@ -277,6 +252,7 @@
   .tt-subject{
     font-weight:900;
     font-size: var(--tt-subject-font);
+
     letter-spacing:.5px;
     line-height:1.1;
     padding:2px 6px;
@@ -296,12 +272,18 @@
     word-break:break-word;
     hyphens:auto;
   }
+  .tt-subject:focus{
+    border-color:#777;
+    background:transparent !important;
+    box-shadow:none !important;
+  }
 
   .tt-teacher-code{
     position:absolute;
     right:6px;
     bottom:6px;
     font-size: var(--tt-teacher-font);
+
     font-weight:900;
     opacity:.95;
     outline:none;
@@ -315,6 +297,11 @@
 
     overflow:hidden;
     max-width:70px;
+  }
+  .tt-teacher-code:focus{
+    border-color:#777;
+    background:transparent !important;
+    box-shadow:none !important;
   }
 
   [data-placeholder]:empty::before{
@@ -337,57 +324,59 @@
     text-overflow:ellipsis;
     max-width:82%;
   }
-
-  /* Below tablet: allow horizontal scroll INSIDE tt-paper only */
-  @media (max-width: 767px){
-    .tt-paper{
-      overflow-x:auto;
-      overflow-y:visible;
-    }
-    table.tt-timetable{ min-width: 656px; }
+  .tt-footerline .brand{ white-space:nowrap; }
+  
+  @media (max-width: 560px){
+    .tt-toolbar{ padding: 10px 10px; }
+    .tt-page-wrap{ padding: 10px; }
+    .tt-hint{ max-width: 100%; }
   }
 
-  /* ---------- PRINT (NO POPUPS) ----------
-     Prints only #ttPrintArea and removes grey/background spacing.
-  */
   @media print{
-    @page{ size: A4 landscape; margin: 8mm; }
-
-    html, body{
-      margin:0 !important;
-      padding:0 !important;
-      background:#fff !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+    body *{ visibility:hidden !important; }
+    /* Lock print sizes to original fixed values (so responsiveness doesn't affect PDF) */
+    #ttPrintArea{
+      --tt-left-col: 140px;
+      --tt-col-lesson: 86px;
+      --tt-col-break: 86px;
+      --tt-col-lunch: 98px;
+      --tt-phead-h: 52px;
+      --tt-slot-h: 112px;
+      --tt-day-font: 54px;
+      --tt-day-pad-y: 20px;
+      --tt-term-font: 20px;
+      --tt-form-font: 56px;
+      --tt-pnum-font: 22px;
+      --tt-ptime-font: 10px;
+      --tt-break-font: 18px;
+      --tt-subject-font: 30px;
+      --tt-teacher-font: 11px;
+      --tt-paper-pad: 14px;
     }
 
-    body *{ visibility:hidden !important; }
     #ttPrintArea, #ttPrintArea *{ visibility:visible !important; }
-
+    #ttPrintArea{ position:absolute; left:0; top:0; width:100%; }
     .tt-toolbar{ display:none !important; }
-
-    .tt-page-wrap{ padding:0 !important; margin:0 !important; }
+    .tt-page-wrap{ padding:0 !important; }
     .tt-paper{
       border:none !important;
       box-shadow:none !important;
-      border-radius:0 !important;
-      margin:0 !important;
+      width:auto !important;
       padding:0 !important;
-      background:#fff !important;
-      overflow:visible !important;
+      border-radius:0 !important;
     }
-
-    #ttPrintArea{
-      position: fixed !important;
-      left:0 !important;
-      top:0 !important;
-
-      transform: scale(var(--tt-print-scale)) !important;
-      transform-origin: top left !important;
-
-      width: calc(100% / var(--tt-print-scale)) !important;
+    @page{
+      size: A4 landscape;
+      margin: 8mm;
     }
-
+    .tt-edit-inline,
+    .tt-subject,
+    .tt-teacher-code{
+      background:transparent !important;
+      box-shadow:none !important;
+      border-color:transparent !important;
+    }
+    /* ✅ KEY: never print placeholders */
     [data-placeholder]:empty::before{ content:"" !important; }
 
     table.tt-timetable{
@@ -419,7 +408,7 @@
           <span class="tt-edit-inline" contenteditable="true" spellcheck="false" id="ttHdrDept" data-placeholder="EXAMS DEPARTMENT"></span>
         </div>
         <div class="tt-class-teacher">
-          Teacher :
+          Class teacher :
           <span class="tt-edit-inline" contenteditable="true" spellcheck="false" id="ttHdrTeacher" data-placeholder="MR DAVID"></span>
         </div>
       </div>
@@ -454,19 +443,58 @@
         <tr>
           <th class="tt-left-header-blank"></th>
 
-          <th class="tt-phead"><div class="tt-pnum">1</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="08:00 - 08:40" id="ttT1"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">2</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="08:40 - 09:20" id="ttT2"></div></th>
-          <th class="tt-phead tt-breakhead">BREAK<div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="09:20 - 09:30" id="ttTB1"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">3</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="09:30 - 10:10" id="ttT3"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">4</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="10:10 - 10:50" id="ttT4"></div></th>
-          <th class="tt-phead tt-breakhead">BREAK<div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="10:50 - 11:20" id="ttTB2"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">5</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="11:20 - 12:00" id="ttT5"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">6</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="12:00 - 12:40" id="ttT6"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">7</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="12:40 - 01:20" id="ttT7"></div></th>
-          <th class="tt-phead tt-lunchhead">LUNCH<div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="01:20 - 02:00" id="ttTL"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">8</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="02:00 - 02:40" id="ttT8"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">9</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="02:40 - 03:20" id="ttT9"></div></th>
-          <th class="tt-phead"><div class="tt-pnum">10</div><div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="05:00 - 05:45" id="ttT10"></div></th>
+          <th class="tt-phead">
+            <div class="tt-pnum">1</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="08:00 - 08:40" id="ttT1"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">2</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="08:40 - 09:20" id="ttT2"></div>
+          </th>
+          <th class="tt-phead tt-breakhead">
+            BREAK
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="09:20 - 09:30" id="ttTB1"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">3</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="09:30 - 10:10" id="ttT3"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">4</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="10:10 - 10:50" id="ttT4"></div>
+          </th>
+          <th class="tt-phead tt-breakhead">
+            BREAK
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="10:50 - 11:20" id="ttTB2"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">5</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="11:20 - 12:00" id="ttT5"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">6</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="12:00 - 12:40" id="ttT6"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">7</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="12:40 - 01:20" id="ttT7"></div>
+          </th>
+          <th class="tt-phead tt-lunchhead">
+            LUNCH
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="01:20 - 02:00" id="ttTL"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">8</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="02:00 - 02:40" id="ttT8"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">9</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="02:40 - 03:20" id="ttT9"></div>
+          </th>
+          <th class="tt-phead">
+            <div class="tt-pnum">10</div>
+            <div class="tt-ptime tt-edit-inline" contenteditable="true" spellcheck="false" data-placeholder="05:00 - 05:45" id="ttT10"></div>
+          </th>
         </tr>
 
         <tbody id="ttGridBody"></tbody>
@@ -489,55 +517,6 @@
 <script>
 (function(){
   "use strict";
-
-  /* ============================================================
-     CLIENT LOGGING (console)
-     - Console logs removed.
-     - Only errors are recorded server-side via tt_edit_log(), if available.
-     ============================================================ */
-
-  const DEBUG = false;
-
-  function nowISO(){ try{ return new Date().toISOString(); }catch(e){ return ""; } }
-
-  function safePreview(v, max=220){
-    try{
-      const s = (typeof v === "string") ? v : JSON.stringify(v);
-      if(!s) return "";
-      return s.length > max ? (s.slice(0, max) + "…(truncated)") : s;
-    }catch(e){
-      return "[unstringifiable]";
-    }
-  }
-
-  function shapeOf(v){
-    const t = (v === null) ? "null" : Array.isArray(v) ? "array" : typeof v;
-    if(t === "string") return { type:"string", len: v.length };
-    if(t === "array")  return { type:"array", count: v.length, keys_sample: Object.keys(v).slice(0, 12) };
-    if(t === "object") return { type:"object", keys_sample: Object.keys(v || {}).slice(0, 15) };
-    return { type:t, value: v };
-  }
-
-  // Server-side error logger (only if edit.php logging spine exists)
-  function srvErr(event, context){
-    try{
-      if (typeof window === "undefined") return;
-      if (typeof window.__tt_server_log !== "function") return;
-      window.__tt_server_log("ERROR", event, context || {});
-    }catch(e){}
-  }
-
-  // Console logger disabled
-  function ttLog(event, context){
-    if(!DEBUG || !window.console) return;
-    try{
-      console.log("[TT_GRID]", {
-        ts: nowISO(),
-        event,
-        context: context || {}
-      });
-    }catch(e){}
-  }
 
   const COLS = [
     { key: "p1",  type:"lesson" },
@@ -588,12 +567,6 @@
 
   function buildGrid(){
     const tbody = $("#ttGridBody");
-    if(!tbody){
-      // Server-side error only
-      srvErr("GRID_BUILD_ABORT", { reason: "#ttGridBody missing" });
-      return;
-    }
-
     tbody.innerHTML = "";
 
     for(const day of DAYS){
@@ -610,7 +583,7 @@
         td.dataset.day = day.key;
         td.dataset.col = col.key;
 
-        // NOTE: edit.php uses td.dataset.subjectId / teacherId as deterministic IDs.
+        // IDs (stored invisibly for DB saves)
         td.dataset.subjectId = "";
         td.dataset.teacherId = "";
 
@@ -633,7 +606,6 @@
       tbody.appendChild(tr);
     }
 
-    // Auto-fit on subject input
     tbody.addEventListener("input", (e) => {
       const el = e.target;
       if(el && el.getAttribute && el.getAttribute("data-field") === "subject"){
@@ -641,7 +613,6 @@
       }
     }, true);
 
-    // Enter key ends editing (no newlines)
     tbody.addEventListener("keydown", (e) => {
       const el = e.target;
       if(!el || !el.getAttribute) return;
@@ -654,35 +625,108 @@
     fitAllSubjects();
   }
 
-  /**
-   * EXPECTED GRID PAYLOAD FORMAT (what edit.php POSTs):
-   *
-   * timetable_payload:
-   * {
-   *   meta:  { dept, teacher, term, form, codes, brand },
-   *   days:  { // NOTE: edit.php currently passes TT.getData().grid.days here (day keys are "mon/tue..." there)
-   *     <dayKey>: {
-   *       <slotKey>: {
-   *         subject: string,
-   *         teacher: string,
-   *         subject_id: number,
-   *         teacher_id: number
-   *       }
-   *     }
-   *   }
-   * }
-   *
-   * times_payload:
-   * {
-   *   p1,p2,b1,p3,p4,b2,p5,p6,p7,l1,p8,p9,p10: "HH:MM - HH:MM"
-   * }
-   */
+  // ✅ Shared print engine (from print.php?asset=tt_print)
+  function doSharedPrint(){
+    if (window.TTPrint && typeof window.TTPrint.printTimetable === "function") {
+      // Use the grid header (Form/Teacher) to auto-name the PDF in most browsers
+      let metaForm = "";
+      try {
+        const data = (window.TT && typeof window.TT.getData === "function") ? window.TT.getData() : null;
+        metaForm = (data && data.meta && data.meta.form) ? String(data.meta.form) : "";
+      } catch(e) {}
+
+      const fileSafe = (s) => String(s || "")
+        .trim()
+        .replace(/[\\/:*?"<>|]+/g, "-")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const base = fileSafe(metaForm) || "Timetable";
+      const title = base.toLowerCase().includes("timetable") ? base : (base + " Timetable");
+
+      window.TTPrint.printTimetable({ title: title, areaId: "ttPrintArea" });
+      return true;
+    }
+    return false;
+  }
+
+
+  // Fallback print (kept as backup)
+  function openPrintWindowFallback(){
+    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    fitAllSubjects();
+
+    const stylesEl = document.getElementById("ttComponentStyles");
+    const styles = stylesEl ? stylesEl.innerHTML : "";
+
+    const printArea = document.getElementById("ttPrintArea");
+    if(!printArea) {
+      window.print();
+      return;
+    }
+
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if(!win) {
+      window.print();
+      return;
+    }
+
+    win.document.open();
+    win.document.write(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Timetable Print</title>
+<style>${styles}</style>
+<style>
+  body{ margin:0; background:#fff; }
+  .tt-paper{ border:none !important; box-shadow:none !important; border-radius:0 !important; width:auto !important; padding:0 !important; }
+  .tt-page-wrap{ padding:0 !important; }
+  /* ✅ never print placeholders */
+  [data-placeholder]:empty::before{ content:"" !important; }
+</style>
+</head>
+<body>
+  <div class="tt-page-wrap">
+    ${printArea.outerHTML}
+  </div>
+</body>
+</html>`);
+    win.document.close();
+
+    win.focus();
+    setTimeout(() => {
+      win.print();
+      setTimeout(() => win.close(), 200);
+    }, 150);
+  }
+
+  function wirePrint(){
+    const btn = $("#ttBtnPrint");
+    if(!btn) return;
+    btn.addEventListener("click", () => {
+      // Prefer shared print engine
+      if (doSharedPrint()) return;
+      // Otherwise fallback
+      openPrintWindowFallback();
+    });
+  }
+
+  function wireResizeFit(){
+    window.addEventListener("resize", () => {
+      clearTimeout(window.__ttFitTO);
+      window.__ttFitTO = setTimeout(fitAllSubjects, 80);
+    });
+  }
+
+  // --- Data model in memory ---
   function getCellValues(){
     const out = { days:{} };
 
     document.querySelectorAll("#ttGridBody td.tt-slot").forEach(td => {
-      const day = td.dataset.day; // "Mo","Tu"...
-      const col = td.dataset.col; // "p1","b1"...
+      const day = td.dataset.day;
+      const col = td.dataset.col;
       if(!day || !col) return;
 
       const subj = td.querySelector('[data-field="subject"]');
@@ -715,8 +759,10 @@
       subj.textContent = cell.subject || "";
       teach.textContent = cell.teacher || "";
 
-      td.dataset.subjectId = (cell.subject_id && parseInt(cell.subject_id,10) > 0) ? String(parseInt(cell.subject_id,10)) : "";
-      td.dataset.teacherId = (cell.teacher_id && parseInt(cell.teacher_id,10) > 0) ? String(parseInt(cell.teacher_id,10)) : "";
+      const sid = (cell && cell.subject_id && parseInt(cell.subject_id,10) > 0) ? String(parseInt(cell.subject_id,10)) : "";
+      const tid = (cell && cell.teacher_id && parseInt(cell.teacher_id,10) > 0) ? String(parseInt(cell.teacher_id,10)) : "";
+      td.dataset.subjectId = sid;
+      td.dataset.teacherId = tid;
 
       autoFitSubject(subj);
     });
@@ -725,7 +771,7 @@
   }
 
   function getTimes(){
-    const out = {
+    return {
       p1: safeText(document.getElementById("ttT1")),
       p2: safeText(document.getElementById("ttT2")),
       b1: safeText(document.getElementById("ttTB1")),
@@ -740,179 +786,84 @@
       p9: safeText(document.getElementById("ttT9")),
       p10: safeText(document.getElementById("ttT10"))
     };
-    return out;
   }
 
   function setTimes(times){
     if(!times) return;
-
     const map = {
       ttT1:"p1", ttT2:"p2", ttTB1:"b1", ttT3:"p3", ttT4:"p4", ttTB2:"b2",
       ttT5:"p5", ttT6:"p6", ttT7:"p7", ttTL:"l1", ttT8:"p8", ttT9:"p9", ttT10:"p10"
     };
-
     Object.keys(map).forEach(id => {
       const key = map[id];
       const el = document.getElementById(id);
-      if(el) el.textContent = (times[key] || "");
+      if(el) el.textContent = times[key] || "";
     });
   }
 
   function getMeta(){
-    const out = {
-      dept: safeText(document.getElementById("ttHdrDept")),
-      teacher: safeText(document.getElementById("ttHdrTeacher")),
+    return {
+      department: safeText(document.getElementById("ttHdrDept")),
+      classTeacher: safeText(document.getElementById("ttHdrTeacher")),
       term: safeText(document.getElementById("ttHdrTerm")),
       form: safeText(document.getElementById("ttHdrForm")),
-      codes: safeText(document.getElementById("ttHdrCodes")),
-      brand: safeText(document.getElementById("ttHdrBrand"))
+      footerCodes: safeText(document.getElementById("ttHdrCodes")),
+      footerBrand: safeText(document.getElementById("ttHdrBrand"))
     };
-    return out;
   }
 
   function setMeta(meta){
-    if(!meta) return;
-
+    if(!meta) meta = {};
     const map = {
-      ttHdrDept:"dept",
-      ttHdrTeacher:"teacher",
+      ttHdrDept:"department",
+      ttHdrTeacher:"classTeacher",
       ttHdrTerm:"term",
       ttHdrForm:"form",
-      ttHdrCodes:"codes",
-      ttHdrBrand:"brand"
+      ttHdrCodes:"footerCodes",
+      ttHdrBrand:"footerBrand"
     };
-
     Object.keys(map).forEach(id => {
       const key = map[id];
       const el = document.getElementById(id);
-      if(el) el.textContent = (meta[key] || "");
+      if(el) el.textContent = meta[key] || "";
     });
   }
 
-  function clearGrid(clearMeta){
-    document.querySelectorAll("#ttGridBody td.tt-slot").forEach(td => {
-      const subj = td.querySelector('[data-field="subject"]');
-      const teach = td.querySelector('[data-field="teacher"]');
-      if(subj) subj.textContent = "";
-      if(teach) teach.textContent = "";
-      td.dataset.subjectId = "";
-      td.dataset.teacherId = "";
-    });
-
+  function clearAll(clearMeta){
+    setCellValues({});
     if(clearMeta){
-      ["ttHdrDept","ttHdrTeacher","ttHdrTerm","ttHdrForm","ttHdrCodes","ttHdrBrand"].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.textContent = "";
-      });
+      setMeta({});
+      setTimes({});
     }
-
-    fitAllSubjects();
   }
 
-  function computePrintTitle(){
-    const form = safeText(document.getElementById("ttHdrForm")) || "Timetable";
-    const term = safeText(document.getElementById("ttHdrTerm")) || "";
-    const base = (form + (term ? (" - " + term) : "")).trim();
-    const out = base.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || "Timetable";
-    return out;
+  function getData(){
+    const meta = getMeta();
+    const times = getTimes();
+    const cells = getCellValues();
+    return {
+      meta: meta,
+      times: times,
+      days: cells.days || {}
+    };
   }
 
-  function printInline(){
-    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    fitAllSubjects();
-
-    const prevTitle = document.title;
-    const title = computePrintTitle();
-    document.title = title;
-
-    window.print();
-
-    window.addEventListener("afterprint", function restore(){
-      document.title = prevTitle;
-      window.removeEventListener("afterprint", restore);
-    });
+  function setData(data){
+    data = data || {};
+    if(data.meta) setMeta(data.meta);
+    if(data.times) setTimes(data.times);
+    if(data.days) setCellValues(data.days);
   }
 
-  function wirePrint(){
-    const btn = $("#ttBtnPrint");
-    if(!btn){
-      srvErr("PRINT_WIRE_ABORT", { reason: "#ttBtnPrint missing" });
-      return;
-    }
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      printInline();
-    });
-  }
-
-  function wireResizeFit(){
-    window.addEventListener("resize", () => {
-      clearTimeout(window.__ttFitTO);
-      window.__ttFitTO = setTimeout(() => {
-        fitAllSubjects();
-      }, 80);
-    });
-  }
-
-  // Expose TT API (edit.php depends on these)
   window.TT = window.TT || {};
+  window.TT.getData = getData;
+  window.TT.setData = setData;
+  window.TT.clear = clearAll;
+  window.TT.getTimes = getTimes;
+  window.TT.setTimes = setTimes;
 
-  window.TT.getData  = function(){
-    const out = { meta: getMeta(), times: getTimes(), grid: getCellValues() };
-    return out;
-  };
-
-  window.TT.setData  = function(data){
-    if(!data) return;
-
-    setMeta(data.meta || null);
-    setTimes(data.times || null);
-    setCellValues((data.grid && data.grid.days) ? data.grid.days : null);
-  };
-
-  window.TT.getTimes = function(){
-    return getTimes();
-  };
-
-  window.TT.setTimes = function(times){
-    setTimes(times || null);
-  };
-
-  window.TT.clear    = function(clearMeta){
-    clearGrid(!!clearMeta);
-  };
-
-  window.TT.build    = function(){
-    buildGrid();
-    wirePrint();
-    wireResizeFit();
-  };
-
-  // Build immediately once DOM is ready (avoids double-build from nested includes)
-  function boot(){
-    try{
-      buildGrid();
-      wirePrint();
-      wireResizeFit();
-    }catch(e){
-      srvErr("BOOT_EXCEPTION", { message: String(e && e.message ? e.message : e), stack: String(e && e.stack ? e.stack : "") });
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => boot());
-  } else {
-    boot();
-  }
+  buildGrid();
+  wirePrint();
+  wireResizeFit();
 })();
 </script>
-
-<?php if (function_exists('tt_edit_log')): ?>
-<?php
-  tt_edit_log('INFO', 'TT_GRID_INCLUDE_END', [
-    'component' => 'timetable_grid.php',
-    'note' => 'Timetable grid component rendered with TT API exposed.'
-  ]);
-?>
-<?php endif; ?>

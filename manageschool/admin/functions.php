@@ -14,7 +14,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role_name'] !== 'Admin' || !isset
 }
 
 // Helper function to sanitize input
-function sanitize($conn, $input) {
+function sanitize($conn, $input)
+{
     if ($input === '') return null; // Handle empty strings as NULL for nullable fields
     return trim($conn->real_escape_string($input)); // Only trim and escape for SQL safety
 }
@@ -411,28 +412,28 @@ switch ($action) {
         }
         $stmt->close();
 
-// Handle logo upload
-if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
-    $file_name = $_FILES['logo']['name'];
-    $file_extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-    if (!in_array($file_extension, $allowed_extensions)) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid logo file format. Allowed formats: jpg, jpeg, png, gif']);
-        exit;
-    }
+        // Handle logo upload
+        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+            $file_name = $_FILES['logo']['name'];
+            $file_extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+            if (!in_array($file_extension, $allowed_extensions)) {
+                echo json_encode(['status' => 'error', 'message' => 'Invalid logo file format. Allowed formats: jpg, jpeg, png, gif']);
+                exit;
+            }
 
-    $upload_dir = __DIR__ . '/../logos/';
-    if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0755, true);
-    }
-    $logo_filename = $school_id . '_' . time() . '.' . $file_extension;
-    $logo_path = $upload_dir . $logo_filename;
-    if (!move_uploaded_file($_FILES['logo']['tmp_name'], $logo_path)) {
-        echo json_encode(['status' => 'error', 'message' => 'Failed to upload logo']);
-        exit;
-    }
-    $logo = 'schoolacademics/manageschool/logos/' . $logo_filename;
-}
+            $upload_dir = __DIR__ . '/../logos/';
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0755, true);
+            }
+            $logo_filename = $school_id . '_' . time() . '.' . $file_extension;
+            $logo_path = $upload_dir . $logo_filename;
+            if (!move_uploaded_file($_FILES['logo']['tmp_name'], $logo_path)) {
+                echo json_encode(['status' => 'error', 'message' => 'Failed to upload logo']);
+                exit;
+            }
+            $logo = 'schoolacademics/manageschool/logos/' . $logo_filename;
+        }
 
         // Update school details
         $stmt = $conn->prepare("
@@ -607,9 +608,69 @@ if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             exit;
         }
         break;
+    case 'reset_user_password':
+        $target_user_id = (int)$_POST['target_user_id'];
+        $new_password   = $_POST['new_password'] ?? '';
+        $confirm_password = $_POST['confirm_password'] ?? '';
 
+        if (empty($target_user_id) || empty($new_password) || empty($confirm_password)) {
+            echo json_encode(['status' => 'error', 'message' => 'Missing required fields']);
+            exit;
+        }
+
+        if ($new_password !== $confirm_password) {
+            echo json_encode(['status' => 'error', 'message' => 'Passwords do not match']);
+            exit;
+        }
+
+        if (strlen($new_password) < 6) {
+            echo json_encode(['status' => 'error', 'message' => 'Password must be at least 6 characters long']);
+            exit;
+        }
+
+        // ────────────────────────────────────────────────
+        // REMOVED: No longer block self-reset
+        // if ($target_user_id === $_SESSION['user_id']) { ... }
+        // ────────────────────────────────────────────────
+
+        // Verify target user belongs to the same school (still good security)
+        $stmt = $conn->prepare("
+        SELECT user_id 
+        FROM users 
+        WHERE user_id = ? AND school_id = ? AND status = 'active'
+    ");
+        $stmt->bind_param("ii", $target_user_id, $school_id);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows === 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid or inactive user']);
+            exit;
+        }
+        $stmt->close();
+
+        $password_hash = password_hash($new_password, PASSWORD_BCRYPT);
+
+        $stmt = $conn->prepare("
+        UPDATE users 
+        SET password_hash = ? 
+        WHERE user_id = ? AND school_id = ?
+    ");
+        $stmt->bind_param("sii", $password_hash, $target_user_id, $school_id);
+
+        if ($stmt->execute()) {
+            if ($stmt->affected_rows > 0) {
+                echo json_encode([
+                    'status'  => 'success',
+                    'message' => 'Password reset successfully'
+                ]);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'No changes made']);
+            }
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $conn->error]);
+        }
+        $stmt->close();
+        break;
     default:
         echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
         break;
 }
-?>

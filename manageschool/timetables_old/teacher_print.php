@@ -103,16 +103,7 @@ function tt_teacher_print_build_view(int $teacher_id): ?array {
     $res = $stmt->get_result();
 
     while ($r = $res->fetch_assoc()) {
-        $rawDay = trim((string)($r['day_of_week'] ?? ''));
-        $dayKey = null;
-
-        // Accept already-short keys directly (Mo/Tu/We/Th/Fr)
-        if ($rawDay !== '' && array_key_exists($rawDay, $daysMap)) {
-            $dayKey = $rawDay;
-        } else {
-            // Fallback: accept full day names (Monday -> Mo)
-            $dayKey = $revDays[$rawDay] ?? null;
-        }        
+        $dayKey = $revDays[$r['day_of_week']] ?? null;
         $colKey = $slotToCol[(int)$r['slot_number']] ?? null;
         if (!$dayKey || !$colKey) continue;
 
@@ -229,31 +220,14 @@ window.__TT_GLOBAL_TIMES = <?= json_encode($global_times ?: null, JSON_UNESCAPED
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-            if (window.TT) {
-            if (window.__TT_VIEW) {
-                const v = window.__TT_VIEW || {};
+        if (window.TT) {
+            if (window.__TT_VIEW) window.TT.setData(window.__TT_VIEW);
+            else window.TT.clear(true);
 
-                const payload = {
-                meta: Object.assign(
-                    { dept:'', teacher:'', term:'', form:'', codes:'', brand:'' },
-                    v.meta || {}
-                ),
-                times: (window.__TT_GLOBAL_TIMES && typeof window.__TT_GLOBAL_TIMES === 'object')
-                    ? window.__TT_GLOBAL_TIMES
-                    : {},
-                grid: { days: (v.days && typeof v.days === 'object') ? v.days : {} }
-                };
-
-                // ✅ Display teacher name in the grid header ("Class teacher:")
-                payload.meta.teacher = payload.meta.teacher || "<?= addslashes($teacher_label) ?>";
-
-                window.TT.setData(payload);
-            } else {
-                window.TT.clear(true);
-                if (window.__TT_GLOBAL_TIMES) window.TT.setTimes(window.__TT_GLOBAL_TIMES);
+            if (window.__TT_GLOBAL_TIMES) {
+                window.TT.setTimes(window.__TT_GLOBAL_TIMES);
             }
-            }
-
+        }
 
         document.getElementById("btnPrintTeacher")?.addEventListener("click", () => {
             const oldTitle = document.title;

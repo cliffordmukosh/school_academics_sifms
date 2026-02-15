@@ -572,7 +572,7 @@ $statuses = ['draft', 'active', 'closed'];
     </div>
 
 
-   
+
     <!-- Manage Grading Systems Modal -->
     <div class="modal fade" id="manageGradingModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
@@ -726,7 +726,6 @@ $statuses = ['draft', 'active', 'closed'];
       </div>
     </div>
 
-
     <!-- View Exam Results Modal -->
     <div class="modal fade" id="viewSubjectsModal" tabindex="-1">
       <div class="modal-dialog modal-xl">
@@ -736,24 +735,39 @@ $statuses = ['draft', 'active', 'closed'];
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="filter-container mb-3 d-flex gap-3">
+            <div class="filter-container mb-3 d-flex gap-3 flex-wrap">
+              <!-- Stream Filter -->
+              <select id="streamSelect" class="form-select w-auto">
+                <option value="">All Streams</option>
+                <!-- Populated dynamically -->
+              </select>
+
+              <!-- Subject Filter -->
               <select id="subjectSelect" class="form-select w-auto">
                 <option value="">All Subjects</option>
+                <!-- Populated dynamically -->
               </select>
-              <input id="admissionNoFilter" type="text" class="form-control w-auto" placeholder="Filter by Admission No">
+
+              <!-- Admission No Filter -->
+              <input id="admissionNoFilter" type="text" class="form-control w-auto"
+                placeholder="Filter by Admission No">
             </div>
+
             <div class="table-container">
               <table class="table table-striped table-hover" id="resultsTable">
                 <thead class="table-dark">
                   <tr id="resultsTableHeader">
                     <th class="sticky-column">Admission No</th>
                     <th class="sticky-column">Student Name</th>
-                    <!-- Dynamic headers will be added here -->
+                    <!-- Dynamic subject/paper columns added here -->
                   </tr>
                 </thead>
                 <tbody id="resultsTableBody"></tbody>
               </table>
             </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
@@ -804,6 +818,8 @@ $statuses = ['draft', 'active', 'closed'];
   $(document).ready(function() {
     // Track active tab for subject selection
     let activeTab = 'manual';
+    let allStreams = [];
+    let currentExamId = null;
 
     // Function to refresh exams and grading systems
     function refreshData() {
@@ -915,8 +931,9 @@ $statuses = ['draft', 'active', 'closed'];
               `<option value="">Select Grading System</option>${gradingOptions}`
             );
           } else {
-            alert(json.message || 'Failed to load grading systems');
+            console.warn('Failed to load grading systems:', json.message);
           }
+
         },
         error: function(xhr) {
           console.error('get_grading_systems failed:', xhr.responseText);
@@ -1141,9 +1158,10 @@ $statuses = ['draft', 'active', 'closed'];
     let allSubjects = [];
     let allStudents = [];
 
-    // Function to fetch and display exam results
     function loadExamResults(examId) {
-      console.log('🔵 Fetching exam results for exam ID:', examId);
+      currentExamId = examId;
+      console.log('Loading results for exam:', examId);
+
       $.ajax({
         url: 'exams/functions.php',
         method: 'POST',
@@ -1157,16 +1175,8 @@ $statuses = ['draft', 'active', 'closed'];
           console.log('✅ AJAX Response:', response);
 
           if (response.status === 'success') {
-            console.log('🔍 Subjects received:', JSON.stringify(response.subjects, null, 2));
-
-            // Use subjects directly (no deduplication in JS)
-            allSubjects = response.subjects;
-            allStudents = response.students;
-
-            // Debug safeguard
-            if (!allSubjects || allSubjects.length === 0) {
-              console.warn('⚠️ No subjects received from server!');
-            }
+            allSubjects = response.subjects || [];
+            allStudents = response.students || [];
 
             // Populate subject dropdown
             $('#subjectSelect')
@@ -1178,30 +1188,131 @@ $statuses = ['draft', 'active', 'closed'];
               );
             });
 
-            // Render table with subjects & students
-            renderTable();
+            // Populate stream dropdown using class_id from response
+            if (response.class_id) {
+              $.post('exams/functions.php', {
+                action: 'get_streams',
+                class_id: response.class_id
+              }, function(streamRes) {
+                if (streamRes.status === 'success') {
+                  allStreams = streamRes.streams || [];
+                  $('#streamSelect')
+                    .empty()
+                    .append('<option value="">All Streams</option>');
+                  allStreams.forEach(stream => {
+                    $('#streamSelect').append(
+                      `<option value="${stream.stream_id}">${stream.stream_name}</option>`
+                    );
+                  });
+                } else {
+                  console.warn('Failed to load streams:', streamRes.message);
+                }
+              }, 'json');
+            }
+
+            // Initial render
+            applyFilters();
           } else {
-            console.error('❌ Response error:', response.message);
-            alert('Error: ' + response.message);
+            alert(response.message || 'Error loading exam results');
           }
         },
         error: function(xhr, status, error) {
-          console.error('❌ AJAX Error:', {
-            status: status,
-            error: error,
-            responseText: xhr.responseText,
-            statusCode: xhr.status
-          });
-          try {
-            const json = JSON.parse(xhr.responseText);
-            alert('Failed to fetch exam results: ' + (json.message || 'Unknown error'));
-          } catch (e) {
-            alert('Failed to fetch exam results: Server returned an invalid response. Check console for details.');
-          }
+          console.error('❌ AJAX Error:', status, error, xhr.responseText);
+          alert('Failed to fetch exam results');
         }
       });
     }
 
+    function applyFilters() {
+      const streamId = $('#streamSelect').val();
+      const subjectId = $('#subjectSelect').val();
+      const admFilter = $('#admissionNoFilter').val().trim().toLowerCase();
+
+      let filteredStudents = allStudents;
+
+      // Stream filter
+      if (streamId) {
+        filteredStudents = filteredStudents.filter(s =>
+          s.stream_id != null && String(s.stream_id) === String(streamId)
+        );
+      }
+
+      // Admission number filter – SAFER VERSION
+      if (admFilter) {
+        filteredStudents = filteredStudents.filter(s => {
+          const adm = String(s.admission_no ?? '').toLowerCase();
+          return adm.includes(admFilter);
+        });
+      }
+
+      renderResultsTable(subjectId, filteredStudents);
+    }
+
+    // Updated render function that accepts subject filter + pre-filtered students
+    function renderResultsTable(subjectId = '', studentsToShow = allStudents) {
+      const $header = $('#resultsTableHeader');
+      const $body = $('#resultsTableBody');
+
+      $header.find('th:not(.sticky-column)').remove();
+      $body.empty();
+
+      const subjectsToRender = subjectId ?
+        allSubjects.filter(s => String(s.subject_id) === String(subjectId)) :
+        allSubjects;
+
+      // Build dynamic headers
+      subjectsToRender.forEach(subject => {
+        if (subject.use_papers && subject.papers?.length > 0) {
+          subject.papers.forEach(paper => {
+            $header.append(
+              `<th>${subject.name} - ${paper.paper_name} (Max: ${paper.max_score})</th>`
+            );
+          });
+        } else {
+          $header.append(`<th>${subject.name} (Max: 100)</th>`);
+        }
+      });
+
+      // Build rows
+      studentsToShow.forEach(student => {
+        let row = `
+            <tr data-student-id="${student.student_id}">
+                <td class="sticky-column">${student.admission_no}</td>
+                <td class="sticky-column">${student.full_name}</td>
+        `;
+
+        subjectsToRender.forEach(subject => {
+          const results = student.results?.[subject.subject_id] || {};
+
+          if (subject.use_papers && subject.papers?.length > 0) {
+            subject.papers.forEach(paper => {
+              const score = results[paper.paper_id]?.score ?? '-';
+              row += `
+                        <td class="editable-cell"
+                            data-student-id="${student.student_id}"
+                            data-subject-id="${subject.subject_id}"
+                            data-paper-id="${paper.paper_id}"
+                            data-max-score="${paper.max_score}">
+                            ${score}
+                        </td>`;
+            });
+          } else {
+            const score = results['null']?.score ?? '-';
+            row += `
+                    <td class="editable-cell"
+                        data-student-id="${student.student_id}"
+                        data-subject-id="${subject.subject_id}"
+                        data-paper-id="null"
+                        data-max-score="100">
+                        ${score}
+                    </td>`;
+          }
+        });
+
+        row += '</tr>';
+        $body.append(row);
+      });
+    }
     // Function to render table headers and body
     function renderTable(subjectId = '', admissionNo = '') {
       const $headerRow = $('#resultsTableHeader');
@@ -1268,29 +1379,24 @@ $statuses = ['draft', 'active', 'closed'];
         $body.append(rowHtml);
       });
     }
-
-    // Event listener for view-subjects (single instance)
     $(document).on('click', '.view-subjects', function() {
       const examId = $(this).data('exam-id');
       $('#viewSubjectsModal').data('exam-id', examId);
-      $('#subjectSelect').val('');
+      $('#streamSelect, #subjectSelect').val('');
       $('#admissionNoFilter').val('');
       loadExamResults(examId);
       $('#viewSubjectsModal').modal('show');
     });
 
-    $('#subjectSelect').on('change', function() {
-      const subjectId = $(this).val();
-      const admissionNo = $('#admissionNoFilter').val();
-      renderTable(subjectId, admissionNo);
-    });
+    $('#streamSelect, #subjectSelect').on('change', applyFilters);
+    $('#admissionNoFilter').on('input', applyFilters);
 
-    $('#admissionNoFilter').on('input', function() {
-      const admissionNo = $(this).val();
-      const subjectId = $('#subjectSelect').val();
-      renderTable(subjectId, admissionNo);
+    // Reset filters when modal is shown
+    $('#viewSubjectsModal').on('shown.bs.modal', function() {
+      $('#streamSelect, #subjectSelect').val('');
+      $('#admissionNoFilter').val('');
+      applyFilters();
     });
-
     // Handle editing result cells
     $(document).on('click', '.editable-cell', function() {
       const $cell = $(this);

@@ -10,7 +10,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['school_id']) || !isset($_S
 }
 
 // Permission check function
-function hasPermission($conn, $role_id, $permission_name, $school_id) {
+function hasPermission($conn, $role_id, $permission_name, $school_id)
+{
     $stmt = $conn->prepare("
         SELECT 1
         FROM role_permissions rp
@@ -26,42 +27,47 @@ function hasPermission($conn, $role_id, $permission_name, $school_id) {
 }
 
 // Sanitize input
-function sanitize($conn, $input) {
+function sanitize($conn, $input)
+{
     if ($input === '' || $input === null) return null;
     return trim($conn->real_escape_string($input));
 }
 
-$action = isset($_POST['action']) ? $_POST['action'] : '';
+$action    = $_POST['action'] ?? '';
 $school_id = $_SESSION['school_id'];
-$user_id = $_SESSION['user_id'];
-$role_id = $_SESSION['role_id'];
+$user_id   = $_SESSION['user_id'];
+$role_id   = $_SESSION['role_id'];
 
 header('Content-Type: application/json');
 
 switch ($action) {
+
+    // ────────────────────────────────────────────────
+    // 1. Add new teacher
+    // ────────────────────────────────────────────────
     case 'add_teacher':
         if (!hasPermission($conn, $role_id, 'manage_teachers', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $first_name = sanitize($conn, $_POST['first_name']);
-        $other_names = sanitize($conn, $_POST['other_names']);
-        $username = sanitize($conn, $_POST['username']);
-        $password = $_POST['password'];
-        $email = sanitize($conn, $_POST['email']);
-        $personal_email = sanitize($conn, $_POST['personal_email']);
-        $phone_number = sanitize($conn, $_POST['phone_number']);
-        $gender = sanitize($conn, $_POST['gender']);
-        $tsc_number = sanitize($conn, $_POST['tsc_number']);
-        $employee_number = sanitize($conn, $_POST['employee_number']);
+        $first_name      = sanitize($conn, $_POST['first_name'] ?? '');
+        $other_names     = sanitize($conn, $_POST['other_names'] ?? '');
+        $username        = sanitize($conn, $_POST['username'] ?? '');
+        $password        = $_POST['password'] ?? '';
+        $email           = sanitize($conn, $_POST['email'] ?? '');
+        $personal_email  = sanitize($conn, $_POST['personal_email'] ?? '');
+        $phone_number    = sanitize($conn, $_POST['phone_number'] ?? '');
+        $gender          = sanitize($conn, $_POST['gender'] ?? '');
+        $tsc_number      = sanitize($conn, $_POST['tsc_number'] ?? '');
+        $employee_number = sanitize($conn, $_POST['employee_number'] ?? '');
 
         if (empty($first_name) || empty($username) || empty($password)) {
             echo json_encode(['status' => 'error', 'message' => 'First name, username, and password are required']);
             exit;
         }
 
-        // Check unique username
+        // Unique username
         $stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
@@ -71,7 +77,7 @@ switch ($action) {
         }
         $stmt->close();
 
-        // Check unique email (if provided)
+        // Unique email (if provided)
         if ($email) {
             $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? AND school_id = ?");
             $stmt->bind_param("si", $email, $school_id);
@@ -105,9 +111,20 @@ switch ($action) {
         ");
         $stmt->bind_param(
             "iissssssssss",
-            $school_id, $teacher_role, $first_name, $other_names, $username, $email, 
-            $personal_email, $phone_number, $gender, $tsc_number, $employee_number, $password_hash
+            $school_id,
+            $teacher_role,
+            $first_name,
+            $other_names,
+            $username,
+            $email,
+            $personal_email,
+            $phone_number,
+            $gender,
+            $tsc_number,
+            $employee_number,
+            $password_hash
         );
+
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Teacher added successfully']);
         } else {
@@ -116,35 +133,37 @@ switch ($action) {
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 2. Edit teacher
+    // ────────────────────────────────────────────────
     case 'edit_teacher':
         if (!hasPermission($conn, $role_id, 'manage_teachers', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $user_id = (int)$_POST['user_id'];
-        $first_name = sanitize($conn, $_POST['first_name']);
-        $other_names = sanitize($conn, $_POST['other_names']);
-        $username = sanitize($conn, $_POST['username']);
-        $password = $_POST['password'];
-        $email = sanitize($conn, $_POST['email']);
-        $personal_email = sanitize($conn, $_POST['personal_email']);
-        $phone_number = sanitize($conn, $_POST['phone_number']);
-        $gender = sanitize($conn, $_POST['gender']);
-        $tsc_number = sanitize($conn, $_POST['tsc_number']);
-        $employee_number = sanitize($conn, $_POST['employee_number']);
-        $status = sanitize($conn, $_POST['status']);
+        $user_id         = (int)($_POST['user_id'] ?? 0);
+        $first_name      = sanitize($conn, $_POST['first_name'] ?? '');
+        $other_names     = sanitize($conn, $_POST['other_names'] ?? '');
+        $username        = sanitize($conn, $_POST['username'] ?? '');
+        $password        = $_POST['password'] ?? '';
+        $email           = sanitize($conn, $_POST['email'] ?? '');
+        $personal_email  = sanitize($conn, $_POST['personal_email'] ?? '');
+        $phone_number    = sanitize($conn, $_POST['phone_number'] ?? '');
+        $gender          = sanitize($conn, $_POST['gender'] ?? '');
+        $tsc_number      = sanitize($conn, $_POST['tsc_number'] ?? '');
+        $employee_number = sanitize($conn, $_POST['employee_number'] ?? '');
+        $status          = sanitize($conn, $_POST['status'] ?? '');
 
         if (empty($first_name) || empty($username) || empty($status)) {
             echo json_encode(['status' => 'error', 'message' => 'First name, username, and status are required']);
             exit;
         }
 
-        // Verify teacher
+        // Verify teacher exists
         $stmt = $conn->prepare("
-            SELECT u.user_id 
-            FROM users u 
-            JOIN roles r ON u.role_id = r.role_id 
+            SELECT 1 FROM users u
+            JOIN roles r ON u.role_id = r.role_id
             WHERE u.user_id = ? AND u.school_id = ? AND r.role_name = 'Teacher' AND u.deleted_at IS NULL
         ");
         $stmt->bind_param("ii", $user_id, $school_id);
@@ -155,7 +174,7 @@ switch ($action) {
         }
         $stmt->close();
 
-        // Check unique username
+        // Unique username (exclude self)
         $stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ? AND user_id != ?");
         $stmt->bind_param("si", $username, $user_id);
         $stmt->execute();
@@ -165,7 +184,7 @@ switch ($action) {
         }
         $stmt->close();
 
-        // Check unique email (if provided)
+        // Unique email (exclude self)
         if ($email) {
             $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? AND school_id = ? AND user_id != ?");
             $stmt->bind_param("sii", $email, $school_id, $user_id);
@@ -177,26 +196,26 @@ switch ($action) {
             $stmt->close();
         }
 
-        // Prepare update query
-        $query = "
-            UPDATE users 
-            SET first_name = ?, other_names = ?, username = ?, email = ?, personal_email = ?, 
-                phone_number = ?, gender = ?, tsc_number = ?, employee_number = ?, status = ?
-        ";
+        $query  = "UPDATE users SET first_name = ?, other_names = ?, username = ?, email = ?, personal_email = ?, 
+                   phone_number = ?, gender = ?, tsc_number = ?, employee_number = ?, status = ?";
         $params = [$first_name, $other_names, $username, $email, $personal_email, $phone_number, $gender, $tsc_number, $employee_number, $status];
+        $types  = 'ssssssssss';
 
-        if (!empty($password)) {
+        if ($password !== '') {
             $password_hash = password_hash($password, PASSWORD_DEFAULT);
             $query .= ", password_hash = ?";
             $params[] = $password_hash;
+            $types   .= 's';
         }
 
         $query .= " WHERE user_id = ? AND school_id = ?";
         $params[] = $user_id;
         $params[] = $school_id;
+        $types   .= 'ii';
 
         $stmt = $conn->prepare($query);
-        $stmt->bind_param(str_repeat('s', count($params) - 2) . 'ii', ...$params);
+        $stmt->bind_param($types, ...$params);
+
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Teacher updated successfully']);
         } else {
@@ -205,65 +224,54 @@ switch ($action) {
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 3. Soft-delete teacher
+    // ────────────────────────────────────────────────
     case 'delete_teacher':
         if (!hasPermission($conn, $role_id, 'manage_teachers', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $user_id = (int)$_POST['user_id'];
+        $user_id = (int)($_POST['user_id'] ?? 0);
 
-        // Verify teacher
         $stmt = $conn->prepare("
-            SELECT u.user_id 
-            FROM users u 
-            JOIN roles r ON u.role_id = r.role_id 
-            WHERE u.user_id = ? AND u.school_id = ? AND r.role_name = 'Teacher' AND u.deleted_at IS NULL
+            UPDATE users 
+            SET deleted_at = CURRENT_TIMESTAMP 
+            WHERE user_id = ? AND school_id = ? AND deleted_at IS NULL
         ");
         $stmt->bind_param("ii", $user_id, $school_id);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows === 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid teacher']);
-            exit;
-        }
-        $stmt->close();
 
-        // Soft delete
-        $stmt = $conn->prepare("UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = ? AND school_id = ?");
-        $stmt->bind_param("ii", $user_id, $school_id);
-        if ($stmt->execute()) {
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
             echo json_encode(['status' => 'success', 'message' => 'Teacher deleted successfully']);
         } else {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to delete teacher: ' . $conn->error]);
+            echo json_encode(['status' => 'error', 'message' => 'Teacher not found or already deleted']);
         }
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 4. Assign subject to teacher
+    // ────────────────────────────────────────────────
     case 'assign_subject':
         if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $teacher_id = (int)$_POST['user_id'];
-        $subject_id = (int)$_POST['subject_id'];
-        $class_id = !empty($_POST['class_id']) ? (int)$_POST['class_id'] : null;
-        $stream_id = !empty($_POST['stream_id']) ? (int)$_POST['stream_id'] : null;
-        $academic_year = !empty($_POST['academic_year']) ? (int)$_POST['academic_year'] : null;
+        $teacher_id    = (int)($_POST['user_id'] ?? 0);
+        $subject_id    = (int)($_POST['subject_id'] ?? 0);
+        $class_id      = !empty($_POST['class_id'])   ? (int)$_POST['class_id']   : null;
+        $stream_id     = !empty($_POST['stream_id'])  ? (int)$_POST['stream_id']  : null;
+        $academic_year = (int)($_POST['academic_year'] ?? 0);
 
-        // Validate required fields
         if (!$teacher_id || !$subject_id || !$academic_year) {
             echo json_encode(['status' => 'error', 'message' => 'Teacher, subject, and academic year are required']);
             exit;
         }
 
         // Verify teacher
-        $stmt = $conn->prepare("
-            SELECT u.user_id 
-            FROM users u 
-            JOIN roles r ON u.role_id = r.role_id 
-            WHERE u.user_id = ? AND u.school_id = ? AND r.role_name = 'Teacher' AND u.deleted_at IS NULL
-        ");
+        $stmt = $conn->prepare("SELECT 1 FROM users WHERE user_id = ? AND school_id = ? AND deleted_at IS NULL");
         $stmt->bind_param("ii", $teacher_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
@@ -273,7 +281,7 @@ switch ($action) {
         $stmt->close();
 
         // Verify subject
-        $stmt = $conn->prepare("SELECT subject_id FROM subjects WHERE subject_id = ? AND school_id = ? AND deleted_at IS NULL");
+        $stmt = $conn->prepare("SELECT 1 FROM subjects WHERE subject_id = ? AND school_id = ? AND deleted_at IS NULL");
         $stmt->bind_param("ii", $subject_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
@@ -282,9 +290,8 @@ switch ($action) {
         }
         $stmt->close();
 
-        // Verify class (if provided)
         if ($class_id) {
-            $stmt = $conn->prepare("SELECT class_id FROM classes WHERE class_id = ? AND school_id = ?");
+            $stmt = $conn->prepare("SELECT 1 FROM classes WHERE class_id = ? AND school_id = ?");
             $stmt->bind_param("ii", $class_id, $school_id);
             $stmt->execute();
             if ($stmt->get_result()->num_rows === 0) {
@@ -294,30 +301,25 @@ switch ($action) {
             $stmt->close();
         }
 
-        // Verify stream (if provided)
         if ($stream_id) {
             if (!$class_id) {
-                echo json_encode(['status' => 'error', 'message' => 'Class must be selected if stream is provided']);
+                echo json_encode(['status' => 'error', 'message' => 'Class required when stream is selected']);
                 exit;
             }
-            $stmt = $conn->prepare("SELECT stream_id FROM streams WHERE stream_id = ? AND school_id = ? AND class_id = ?");
-            $stmt->bind_param("iii", $stream_id, $school_id, $class_id);
+            $stmt = $conn->prepare("SELECT 1 FROM streams WHERE stream_id = ? AND class_id = ? AND school_id = ?");
+            $stmt->bind_param("iii", $stream_id, $class_id, $school_id);
             $stmt->execute();
             if ($stmt->get_result()->num_rows === 0) {
-                echo json_encode(['status' => 'error', 'message' => 'Invalid stream for selected class']);
+                echo json_encode(['status' => 'error', 'message' => 'Invalid stream']);
                 exit;
             }
             $stmt->close();
         }
 
-        // Check for duplicate assignment
-        $query = "
-            SELECT teacher_subject_id 
-            FROM teacher_subjects 
-            WHERE school_id = ? AND user_id = ? AND subject_id = ? AND academic_year = ?
-        ";
+        // Duplicate check
+        $query = "SELECT 1 FROM teacher_subjects WHERE school_id = ? AND user_id = ? AND subject_id = ? AND academic_year = ?";
         $params = [$school_id, $teacher_id, $subject_id, $academic_year];
-        $types = "iiii";
+        $types  = "iiii";
 
         if ($class_id !== null) {
             $query .= " AND class_id = ?";
@@ -339,61 +341,59 @@ switch ($action) {
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
         if ($stmt->get_result()->num_rows > 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Subject already assigned to this teacher for the selected class/stream/year']);
+            echo json_encode(['status' => 'error', 'message' => 'Subject already assigned for this configuration']);
             exit;
         }
         $stmt->close();
 
-        // Insert assignment
+        // Insert
         $stmt = $conn->prepare("
             INSERT INTO teacher_subjects (school_id, user_id, subject_id, class_id, stream_id, academic_year)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
         $stmt->bind_param("iiiiis", $school_id, $teacher_id, $subject_id, $class_id, $stream_id, $academic_year);
+
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Subject assigned successfully']);
         } else {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to assign subject: ' . $conn->error]);
+            echo json_encode(['status' => 'error', 'message' => 'Failed to assign: ' . $conn->error]);
         }
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 5. Edit existing assignment
+    // ────────────────────────────────────────────────
     case 'edit_assignment':
         if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $teacher_subject_id = (int)$_POST['teacher_subject_id'];
-        $teacher_id = (int)$_POST['user_id'];
-        $subject_id = (int)$_POST['subject_id'];
-        $class_id = !empty($_POST['class_id']) ? (int)$_POST['class_id'] : null;
-        $stream_id = !empty($_POST['stream_id']) ? (int)$_POST['stream_id'] : null;
-        $academic_year = !empty($_POST['academic_year']) ? (int)$_POST['academic_year'] : null;
+        $teacher_subject_id = (int)($_POST['teacher_subject_id'] ?? 0);
+        $teacher_id         = (int)($_POST['user_id'] ?? 0);
+        $subject_id         = (int)($_POST['subject_id'] ?? 0);
+        $class_id           = !empty($_POST['class_id'])   ? (int)$_POST['class_id']   : null;
+        $stream_id          = !empty($_POST['stream_id'])  ? (int)$_POST['stream_id']  : null;
+        $academic_year      = (int)($_POST['academic_year'] ?? 0);
 
-        // Validate required fields
         if (!$teacher_subject_id || !$teacher_id || !$subject_id || !$academic_year) {
-            echo json_encode(['status' => 'error', 'message' => 'Assignment ID, teacher, subject, and academic year are required']);
+            echo json_encode(['status' => 'error', 'message' => 'Required fields missing']);
             exit;
         }
 
-        // Verify assignment
-        $stmt = $conn->prepare("SELECT teacher_subject_id FROM teacher_subjects WHERE teacher_subject_id = ? AND school_id = ?");
+        // Verify assignment exists
+        $stmt = $conn->prepare("SELECT 1 FROM teacher_subjects WHERE teacher_subject_id = ? AND school_id = ?");
         $stmt->bind_param("ii", $teacher_subject_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid assignment']);
+            echo json_encode(['status' => 'error', 'message' => 'Assignment not found']);
             exit;
         }
         $stmt->close();
 
         // Verify teacher
-        $stmt = $conn->prepare("
-            SELECT u.user_id 
-            FROM users u 
-            JOIN roles r ON u.role_id = r.role_id 
-            WHERE u.user_id = ? AND u.school_id = ? AND r.role_name = 'Teacher' AND u.deleted_at IS NULL
-        ");
+        $stmt = $conn->prepare("SELECT 1 FROM users WHERE user_id = ? AND school_id = ? AND deleted_at IS NULL");
         $stmt->bind_param("ii", $teacher_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
@@ -403,7 +403,7 @@ switch ($action) {
         $stmt->close();
 
         // Verify subject
-        $stmt = $conn->prepare("SELECT subject_id FROM subjects WHERE subject_id = ? AND school_id = ? AND deleted_at IS NULL");
+        $stmt = $conn->prepare("SELECT 1 FROM subjects WHERE subject_id = ? AND school_id = ? AND deleted_at IS NULL");
         $stmt->bind_param("ii", $subject_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
@@ -412,9 +412,8 @@ switch ($action) {
         }
         $stmt->close();
 
-        // Verify class (if provided)
         if ($class_id) {
-            $stmt = $conn->prepare("SELECT class_id FROM classes WHERE class_id = ? AND school_id = ?");
+            $stmt = $conn->prepare("SELECT 1 FROM classes WHERE class_id = ? AND school_id = ?");
             $stmt->bind_param("ii", $class_id, $school_id);
             $stmt->execute();
             if ($stmt->get_result()->num_rows === 0) {
@@ -424,31 +423,29 @@ switch ($action) {
             $stmt->close();
         }
 
-        // Verify stream (if provided)
         if ($stream_id) {
             if (!$class_id) {
-                echo json_encode(['status' => 'error', 'message' => 'Class must be selected if stream is provided']);
+                echo json_encode(['status' => 'error', 'message' => 'Class required when stream selected']);
                 exit;
             }
-            $stmt = $conn->prepare("SELECT stream_id FROM streams WHERE stream_id = ? AND school_id = ? AND class_id = ?");
-            $stmt->bind_param("iii", $stream_id, $school_id, $class_id);
+            $stmt = $conn->prepare("SELECT 1 FROM streams WHERE stream_id = ? AND class_id = ? AND school_id = ?");
+            $stmt->bind_param("iii", $stream_id, $class_id, $school_id);
             $stmt->execute();
             if ($stmt->get_result()->num_rows === 0) {
-                echo json_encode(['status' => 'error', 'message' => 'Invalid stream for selected class']);
+                echo json_encode(['status' => 'error', 'message' => 'Invalid stream']);
                 exit;
             }
             $stmt->close();
         }
 
-        // Check for duplicate assignment (excluding current assignment)
+        // Duplicate check (exclude self)
         $query = "
-            SELECT teacher_subject_id 
-            FROM teacher_subjects 
+            SELECT 1 FROM teacher_subjects 
             WHERE school_id = ? AND user_id = ? AND subject_id = ? AND academic_year = ? 
             AND teacher_subject_id != ?
         ";
         $params = [$school_id, $teacher_id, $subject_id, $academic_year, $teacher_subject_id];
-        $types = "iiisi";
+        $types  = "iiisi";
 
         if ($class_id !== null) {
             $query .= " AND class_id = ?";
@@ -470,82 +467,131 @@ switch ($action) {
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
         if ($stmt->get_result()->num_rows > 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Subject already assigned to this teacher for the selected class/stream/year']);
+            echo json_encode(['status' => 'error', 'message' => 'Subject already assigned in this configuration']);
             exit;
         }
         $stmt->close();
 
-        // Update assignment
+        // Perform update
         $stmt = $conn->prepare("
             UPDATE teacher_subjects 
             SET subject_id = ?, class_id = ?, stream_id = ?, academic_year = ?
             WHERE teacher_subject_id = ? AND school_id = ?
         ");
         $stmt->bind_param("iisiii", $subject_id, $class_id, $stream_id, $academic_year, $teacher_subject_id, $school_id);
+
         if ($stmt->execute()) {
             echo json_encode(['status' => 'success', 'message' => 'Assignment updated successfully']);
         } else {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to update assignment: ' . $conn->error]);
+            echo json_encode(['status' => 'error', 'message' => 'Update failed: ' . $conn->error]);
         }
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 6. Delete assignment
+    // ────────────────────────────────────────────────
     case 'delete_assignment':
         if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $teacher_subject_id = (int)$_POST['teacher_subject_id'];
+        $teacher_subject_id = (int)($_POST['teacher_subject_id'] ?? 0);
 
-        // Verify assignment
-        $stmt = $conn->prepare("SELECT teacher_subject_id FROM teacher_subjects WHERE teacher_subject_id = ? AND school_id = ?");
-        $stmt->bind_param("ii", $teacher_subject_id, $school_id);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows === 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid assignment']);
-            exit;
-        }
-        $stmt->close();
-
-        // Delete assignment
         $stmt = $conn->prepare("DELETE FROM teacher_subjects WHERE teacher_subject_id = ? AND school_id = ?");
         $stmt->bind_param("ii", $teacher_subject_id, $school_id);
-        if ($stmt->execute()) {
+
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
             echo json_encode(['status' => 'success', 'message' => 'Assignment deleted successfully']);
         } else {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to delete assignment: ' . $conn->error]);
+            echo json_encode(['status' => 'error', 'message' => 'Assignment not found']);
         }
         $stmt->close();
         break;
 
+    // ────────────────────────────────────────────────
+    // 7. NEW: Get all assignments for a teacher (for modal)
+    // ────────────────────────────────────────────────
+    case 'get_teacher_assignments':
+        if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
+            exit;
+        }
+
+        $teacher_id = (int)($_POST['teacher_id'] ?? 0);
+        if ($teacher_id === 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Teacher ID required']);
+            exit;
+        }
+
+        $stmt = $conn->prepare("
+            SELECT 
+                ts.teacher_subject_id,
+                ts.subject_id,
+                s.name          AS subject_name,
+                s.is_cbc,
+                ts.class_id,
+                c.form_name,
+                ts.stream_id,
+                st.stream_name,
+                ts.academic_year
+            FROM teacher_subjects ts
+            LEFT JOIN subjects s  ON ts.subject_id = s.subject_id
+            LEFT JOIN classes  c  ON ts.class_id   = c.class_id
+            LEFT JOIN streams  st ON ts.stream_id  = st.stream_id
+            WHERE ts.school_id = ? 
+              AND ts.user_id   = ?
+              AND s.deleted_at IS NULL
+            ORDER BY ts.academic_year DESC, s.name ASC
+        ");
+        $stmt->bind_param("ii", $school_id, $teacher_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $assignments = [];
+        while ($row = $result->fetch_assoc()) {
+            $assignments[] = $row;
+        }
+        $stmt->close();
+
+        echo json_encode([
+            'status'      => 'success',
+            'assignments' => $assignments
+        ]);
+        break;
+
+    // ────────────────────────────────────────────────
+    // 8. Get dropdown options (subjects/classes/streams)
+    // ────────────────────────────────────────────────
     case 'get_assign_options':
         if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        // Fetch subjects
+        $subjects = $classes = $streams = [];
+
+        // Subjects
         $stmt = $conn->prepare("
-    SELECT subject_id, name, is_cbc 
-    FROM subjects 
-    WHERE school_id = ? 
-    AND deleted_at IS NULL 
-    ORDER BY name
-");
+            SELECT subject_id, name, is_cbc 
+            FROM subjects 
+            WHERE school_id = ? AND deleted_at IS NULL 
+            ORDER BY name
+        ");
         $stmt->bind_param("i", $school_id);
         $stmt->execute();
         $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        // Fetch classes
+        // Classes
         $stmt = $conn->prepare("SELECT class_id, form_name FROM classes WHERE school_id = ? ORDER BY form_name");
         $stmt->bind_param("i", $school_id);
         $stmt->execute();
         $classes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        // Fetch streams
+        // Streams
         $stmt = $conn->prepare("SELECT stream_id, stream_name, class_id FROM streams WHERE school_id = ? ORDER BY stream_name");
         $stmt->bind_param("i", $school_id);
         $stmt->execute();
@@ -553,38 +599,45 @@ switch ($action) {
         $stmt->close();
 
         echo json_encode([
-            'status' => 'success',
-            'subjects' => $subjects ?: [],
-            'classes' => $classes ?: [],
-            'streams' => $streams ?: []
+            'status'   => 'success',
+            'subjects' => $subjects,
+            'classes'  => $classes,
+            'streams'  => $streams
         ]);
         break;
 
+    // ────────────────────────────────────────────────
+    // 9. Get streams for a specific class
+    // ────────────────────────────────────────────────
     case 'get_streams_by_class':
         if (!hasPermission($conn, $role_id, 'assign_subjects', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $class_id = !empty($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
-        if ($class_id === 0) {
+        $class_id = (int)($_POST['class_id'] ?? 0);
+        if (!$class_id) {
             echo json_encode(['status' => 'success', 'streams' => []]);
             exit;
         }
 
-        $stmt = $conn->prepare("SELECT stream_id, stream_name FROM streams WHERE school_id = ? AND class_id = ? ORDER BY stream_name");
+        $stmt = $conn->prepare("
+            SELECT stream_id, stream_name 
+            FROM streams 
+            WHERE school_id = ? AND class_id = ? 
+            ORDER BY stream_name
+        ");
         $stmt->bind_param("ii", $school_id, $class_id);
         $stmt->execute();
         $streams = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        echo json_encode(['status' => 'success', 'streams' => $streams ?: []]);
+        echo json_encode(['status' => 'success', 'streams' => $streams]);
         break;
 
     default:
-        echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid or missing action']);
         break;
 }
 
 $conn->close();
-?>

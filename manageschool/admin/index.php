@@ -1,6 +1,6 @@
 <?php
-include __DIR__ . '/../header.php'; 
-include __DIR__ . '/../sidebar.php'; 
+include __DIR__ . '/../header.php';
+include __DIR__ . '/../sidebar.php';
 require __DIR__ . '/../../connection/db.php';
 require __DIR__ . '/../../vendor/autoload.php'; // For PhpSpreadsheet
 
@@ -8,8 +8,8 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Check if user is logged in, has 'Admin' role, and belongs to the school
 if (!isset($_SESSION['user_id']) || $_SESSION['role_name'] !== 'Admin' || !isset($_SESSION['school_id'])) {
-    header("Location: ../index.php");
-    exit;
+  header("Location: ../index.php");
+  exit;
 }
 
 // Fetch roles for this school
@@ -85,135 +85,169 @@ $totalSettings = count($settings);
 ?>
 
 <style>
-/* Custom styles for mobile responsiveness */
-.content {
-    max-width: 100%; /* Prevent content from exceeding viewport */
-    overflow-x: hidden; /* Avoid horizontal scroll */
-}
+  /* Custom styles for mobile responsiveness */
+  .content {
+    max-width: 100%;
+    /* Prevent content from exceeding viewport */
+    overflow-x: hidden;
+    /* Avoid horizontal scroll */
+  }
 
-.card {
-    width: 100%; /* Ensure cards don't exceed parent width */
-}
+  .card {
+    width: 100%;
+    /* Ensure cards don't exceed parent width */
+  }
 
-.table-responsive {
-    min-width: 0; /* Prevent table from forcing wider layout */
-}
+  .table-responsive {
+    min-width: 0;
+    /* Prevent table from forcing wider layout */
+  }
 
-.table {
-    width: 100%; /* Ensure table fits container */
-    table-layout: auto; /* Allow columns to adjust dynamically */
-}
+  .table {
+    width: 100%;
+    /* Ensure table fits container */
+    table-layout: auto;
+    /* Allow columns to adjust dynamically */
+  }
 
-.table th, .table td {
-    white-space: nowrap; /* Prevent wrapping unless necessary */
+  .table th,
+  .table td {
+    white-space: nowrap;
+    /* Prevent wrapping unless necessary */
     overflow: hidden;
-    text-overflow: ellipsis; /* Truncate long text */
-    max-width: 200px; /* Cap column width */
-}
+    text-overflow: ellipsis;
+    /* Truncate long text */
+    max-width: 200px;
+    /* Cap column width */
+  }
 
-.table th:nth-child(2), .table td:nth-child(2) { /* Name column */
+  .table th:nth-child(2),
+  .table td:nth-child(2) {
+    /* Name column */
     max-width: 150px;
-}
+  }
 
-.table th:nth-child(3), .table td:nth-child(3) { /* Username column */
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    /* Username column */
     max-width: 120px;
-}
+  }
 
-.table th:nth-child(4), .table td:nth-child(4) { /* Email column */
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    /* Email column */
     max-width: 180px;
-}
+  }
 
-.table th:nth-child(5), .table td:nth-child(5) { /* Personal Email column */
+  .table th:nth-child(5),
+  .table td:nth-child(5) {
+    /* Personal Email column */
     max-width: 180px;
-}
+  }
 
-.table th:nth-child(6), .table td:nth-child(6) { /* Role column */
+  .table th:nth-child(6),
+  .table td:nth-child(6) {
+    /* Role column */
     max-width: 100px;
-}
+  }
 
-.table th:nth-child(7), .table td:nth-child(7) { /* Actions column */
+  .table th:nth-child(7),
+  .table td:nth-child(7) {
+    /* Actions column */
     max-width: 120px;
-}
+  }
 
-/* Mobile-specific styles */
-@media (max-width: 767.98px) {
+  /* Mobile-specific styles */
+  @media (max-width: 767.98px) {
     .content {
-        padding: 1rem; /* Consistent with header.php */
+      padding: 1rem;
+      /* Consistent with header.php */
     }
 
     .container {
-        padding-left: 0.5rem;
-        padding-right: 0.5rem; /* Reduce padding for mobile */
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+      /* Reduce padding for mobile */
     }
 
     .card {
-        margin-bottom: 1rem;
+      margin-bottom: 1rem;
     }
 
     .card-body {
-        padding: 1rem;
+      padding: 1rem;
     }
 
     .card h5 {
-        font-size: 1rem;
+      font-size: 1rem;
     }
 
     .card .display-5 {
-        font-size: 2rem !important;
+      font-size: 2rem !important;
     }
 
     .card .fs-4 {
-        font-size: 1.5rem !important;
+      font-size: 1.5rem !important;
     }
 
     .btn-sm {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
     }
 
     .table {
-        font-size: 0.85rem;
+      font-size: 0.85rem;
     }
 
-    .table th, .table td {
-        padding: 0.5rem;
-        max-width: 100px; /* Tighter constraints on mobile */
+    .table th,
+    .table td {
+      padding: 0.5rem;
+      max-width: 100px;
+      /* Tighter constraints on mobile */
     }
 
-    .table th:nth-child(4), .table td:nth-child(4), /* Email */
-    .table th:nth-child(5), .table td:nth-child(5) { /* Personal Email */
-        max-width: 120px;
+    .table th:nth-child(4),
+    .table td:nth-child(4),
+    /* Email */
+    .table th:nth-child(5),
+    .table td:nth-child(5) {
+      /* Personal Email */
+      max-width: 120px;
     }
 
     .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
-}
+  }
 
-/* Very small screens */
-@media (max-width: 576px) {
-    .table th, .table td {
-        max-width: 80px;
+  /* Very small screens */
+  @media (max-width: 576px) {
+
+    .table th,
+    .table td {
+      max-width: 80px;
     }
 
-    .table th:nth-child(4), .table td:nth-child(4),
-    .table th:nth-child(5), .table td:nth-child(5) {
-        max-width: 100px;
+    .table th:nth-child(4),
+    .table td:nth-child(4),
+    .table th:nth-child(5),
+    .table td:nth-child(5) {
+      max-width: 100px;
     }
 
     .modal-dialog {
-        margin: 0.5rem;
+      margin: 0.5rem;
     }
 
     .modal-content {
-        font-size: 0.9rem;
+      font-size: 0.9rem;
     }
 
     .modal-header h5 {
-        font-size: 1.1rem;
+      font-size: 1.1rem;
     }
-}
+  }
 </style>
 
 <div class="content">
@@ -324,6 +358,11 @@ $totalSettings = count($settings);
                   <td>
                     <button class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#viewUserModal<?php echo $user['user_id']; ?>"><i class="bi bi-eye"></i></button>
                     <button class="btn btn-sm btn-warning text-white" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo $user['user_id']; ?>"><i class="bi bi-pencil-square"></i></button>
+                    <button class="btn btn-sm btn-secondary text-white reset-password-btn"
+                      data-user-id="<?php echo $user['user_id']; ?>"
+                      data-user-name="<?php echo htmlspecialchars($user['first_name'] . ' ' . ($user['other_names'] ?? '')); ?>">
+                      <i class="bi bi-key"></i>
+                    </button>
                     <button class="btn btn-sm btn-danger delete-user" data-user-id="<?php echo $user['user_id']; ?>"><i class="bi bi-trash"></i></button>
                   </td>
                 </tr>
@@ -693,220 +732,306 @@ $totalSettings = count($settings);
   </div>
 </div>
 
+
+<!-- Reset Password Modal (shared for all users) -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title" id="resetPasswordModalLabel">
+          <i class="bi bi-key me-2"></i> Reset Password
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>For user:</strong> <span id="resetUserName"></span></p>
+        <form id="resetPasswordForm">
+          <input type="hidden" name="target_user_id" id="resetUserId">
+
+          <div class="mb-3">
+            <label class="form-label">New Password</label>
+            <input type="password" class="form-control" name="new_password" id="reset_new_password"
+              placeholder="Enter new password" required minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Confirm New Password</label>
+            <input type="password" class="form-control" name="confirm_password" id="reset_confirm_password"
+              placeholder="Confirm new password" required>
+          </div>
+          <div class="d-grid">
+            <button type="submit" class="btn btn-secondary">
+              <i class="bi bi-check-circle me-2"></i> Reset Password
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-$(document).ready(function () {
-  function ajaxDebug(options) {
-    console.log("🔹 Sending AJAX:", options);
-    $.ajax({
-      ...options,
-      success: function (response, status, xhr) {
-        console.log("✅ Raw Response:", response);
-        try {
-          const json = typeof response === 'string' ? JSON.parse(response) : response;
-          console.log("✅ Parsed JSON:", json);
-          if (options.onSuccess) options.onSuccess(json);
-        } catch (e) {
-          console.error("❌ JSON parse failed:", e);
-          console.log("🔴 Response text:", response);
-          alert("Server returned invalid JSON. Check console.");
+  $(document).ready(function() {
+    function ajaxDebug(options) {
+      console.log("🔹 Sending AJAX:", options);
+      $.ajax({
+        ...options,
+        success: function(response, status, xhr) {
+          console.log("✅ Raw Response:", response);
+          try {
+            const json = typeof response === 'string' ? JSON.parse(response) : response;
+            console.log("✅ Parsed JSON:", json);
+            if (options.onSuccess) options.onSuccess(json);
+          } catch (e) {
+            console.error("❌ JSON parse failed:", e);
+            console.log("🔴 Response text:", response);
+            alert("Server returned invalid JSON. Check console.");
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error("❌ AJAX Error:", status, error);
+          console.log("🔴 Response text:", xhr.responseText);
+          try {
+            const json = JSON.parse(xhr.responseText);
+            alert(json.message || "An error occurred. Check console.");
+          } catch (e) {
+            alert("An error occurred. Check console.");
+          }
         }
-      },
-      error: function (xhr, status, error) {
-        console.error("❌ AJAX Error:", status, error);
-        console.log("🔴 Response text:", xhr.responseText);
-        try {
-          const json = JSON.parse(xhr.responseText);
-          alert(json.message || "An error occurred. Check console.");
-        } catch (e) {
-          alert("An error occurred. Check console.");
-        }
-      }
-    });
-  }
-
-  // Add Role
-  $('#addRoleForm').on('submit', function (e) {
-    e.preventDefault();
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=add_role',
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#addRoleModal').modal('hide');
-          window.location.reload();
-        }
-      }
-    });
-  });
-
-  // Assign Permissions to Role
-  $('#assignPermissionsToRoleForm').on('submit', function (e) {
-    e.preventDefault();
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=assign_permissions_to_role',
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#assignPermissionsToRoleModal').modal('hide');
-          window.location.reload();
-        }
-      }
-    });
-  });
-
-  // Assign Role to User
-  $('#assignRolesToUserForm').on('submit', function (e) {
-    e.preventDefault();
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=assign_roles_to_user',
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#assignRolesToUserModal').modal('hide');
-          window.location.reload();
-        }
-      }
-    });
-  });
-
-  // Add User
-  $('#addUserForm').on('submit', function (e) {
-    e.preventDefault();
-    const email = $(this).find('input[name="email"]').val();
-    const personalEmail = $(this).find('input[name="personal_email"]').val();
-    if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      alert('Please enter a valid system email address');
-      return;
+      });
     }
-    if (personalEmail && !personalEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      alert('Please enter a valid personal email address');
-      return;
-    }
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=add_user',
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#addUserModal').modal('hide');
-          window.location.reload();
-        }
-      }
-    });
-  });
 
-  // Edit User
-  $('.edit-user-form').on('submit', function (e) {
-    e.preventDefault();
-    const userId = $(this).data('user-id');
-    const email = $(this).find('input[name="email"]').val();
-    const personalEmail = $(this).find('input[name="personal_email"]').val();
-    if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      alert('Please enter a valid system email address');
-      return;
-    }
-    if (personalEmail && !personalEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      alert('Please enter a valid personal email address');
-      return;
-    }
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=edit_user&user_id=' + userId,
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#editUserModal' + userId).modal('hide');
-          window.location.reload();
+    // Add Role
+    $('#addRoleForm').on('submit', function(e) {
+      e.preventDefault();
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=add_role',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#addRoleModal').modal('hide');
+            window.location.reload();
+          }
         }
-      }
+      });
     });
-  });
 
-  // Delete User
-  $('.delete-user').on('click', function () {
-    if (!confirm('Delete this user?')) return;
-    const userId = $(this).data('user-id');
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: { action: 'delete_user', user_id: userId },
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          window.location.reload();
+    // Assign Permissions to Role
+    $('#assignPermissionsToRoleForm').on('submit', function(e) {
+      e.preventDefault();
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=assign_permissions_to_role',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#assignPermissionsToRoleModal').modal('hide');
+            window.location.reload();
+          }
         }
-      }
+      });
     });
-  });
 
-  // Manage School Settings
-  $('#manageSettingsForm').on('submit', function (e) {
-    e.preventDefault();
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: $(this).serialize() + '&action=manage_settings',
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#manageSettingsModal').modal('hide');
-          window.location.reload();
+    // Assign Role to User
+    $('#assignRolesToUserForm').on('submit', function(e) {
+      e.preventDefault();
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=assign_roles_to_user',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#assignRolesToUserModal').modal('hide');
+            window.location.reload();
+          }
         }
-      }
+      });
     });
-  });
 
-  // Update School Details
-  $('#updateSchoolDetailsForm').on('submit', function (e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    formData.append('action', 'update_school_details');
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: formData,
-      processData: false,
-      contentType: false,
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#updateSchoolDetailsModal').modal('hide');
-          window.location.reload();
-        }
+    // Add User
+    $('#addUserForm').on('submit', function(e) {
+      e.preventDefault();
+      const email = $(this).find('input[name="email"]').val();
+      const personalEmail = $(this).find('input[name="personal_email"]').val();
+      if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid system email address');
+        return;
       }
+      if (personalEmail && !personalEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid personal email address');
+        return;
+      }
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=add_user',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#addUserModal').modal('hide');
+            window.location.reload();
+          }
+        }
+      });
     });
-  });
 
-  // Upload Fees
-  $('#uploadFeesForm').on('submit', function (e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    formData.append('action', 'upload_fees');
-    ajaxDebug({
-      url: 'admin/functions.php',
-      method: 'POST',
-      data: formData,
-      processData: false,
-      contentType: false,
-      onSuccess: function (json) {
-        alert(json.message);
-        if (json.status === 'success') {
-          $('#uploadFeesModal').modal('hide');
-          window.location.reload();
-        }
+    // Edit User
+    $('.edit-user-form').on('submit', function(e) {
+      e.preventDefault();
+      const userId = $(this).data('user-id');
+      const email = $(this).find('input[name="email"]').val();
+      const personalEmail = $(this).find('input[name="personal_email"]').val();
+      if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid system email address');
+        return;
       }
+      if (personalEmail && !personalEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        alert('Please enter a valid personal email address');
+        return;
+      }
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=edit_user&user_id=' + userId,
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#editUserModal' + userId).modal('hide');
+            window.location.reload();
+          }
+        }
+      });
     });
+
+    // Delete User
+    $('.delete-user').on('click', function() {
+      if (!confirm('Delete this user?')) return;
+      const userId = $(this).data('user-id');
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: {
+          action: 'delete_user',
+          user_id: userId
+        },
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            window.location.reload();
+          }
+        }
+      });
+    });
+
+    // Manage School Settings
+    $('#manageSettingsForm').on('submit', function(e) {
+      e.preventDefault();
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=manage_settings',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#manageSettingsModal').modal('hide');
+            window.location.reload();
+          }
+        }
+      });
+    });
+
+    // Update School Details
+    $('#updateSchoolDetailsForm').on('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      formData.append('action', 'update_school_details');
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#updateSchoolDetailsModal').modal('hide');
+            window.location.reload();
+          }
+        }
+      });
+    });
+
+    // Upload Fees
+    $('#uploadFeesForm').on('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      formData.append('action', 'upload_fees');
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#uploadFeesModal').modal('hide');
+            window.location.reload();
+          }
+        }
+      });
+    });
+
+
+    // Reset Password - Open modal
+    $(document).on('click', '.reset-password-btn', function() {
+      const userId = $(this).data('user-id');
+      const userName = $(this).data('user-name');
+
+      $('#resetUserId').val(userId);
+      $('#resetUserName').text(userName);
+      $('#reset_new_password').val('');
+      $('#reset_confirm_password').val('');
+
+      $('#resetPasswordModal').modal('show');
+    });
+
+    // Reset Password - Form submit
+    $('#resetPasswordForm').on('submit', function(e) {
+      e.preventDefault();
+
+      const newPass = $('#reset_new_password').val();
+      const confirmPass = $('#reset_confirm_password').val();
+
+      if (newPass !== confirmPass) {
+        alert('Passwords do not match!');
+        return;
+      }
+
+      if (newPass.length < 6) {
+        alert('Password must be at least 6 characters long!');
+        return;
+      }
+
+      ajaxDebug({
+        url: 'admin/functions.php',
+        method: 'POST',
+        data: $(this).serialize() + '&action=reset_user_password',
+        onSuccess: function(json) {
+          alert(json.message);
+          if (json.status === 'success') {
+            $('#resetPasswordModal').modal('hide');
+            $('#resetPasswordForm')[0].reset();
+          }
+        }
+      });
+    });
+
   });
-});
 </script>
 
 <?php include __DIR__ . '/../footer.php'; ?>

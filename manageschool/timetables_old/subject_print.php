@@ -4,9 +4,6 @@ require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/../header.php';
 require_once __DIR__ . '/../sidebar.php';
 
-// Build absolute URL to print.php (immune to <base href>)
-$PRINT_ASSET_URL = rtrim(dirname($_SERVER['PHP_SELF']), '/\\') . '/print.php?asset=tt_print';
-
 /**
  * Build Subject Allocation Report (derived from saved STREAM timetables)
  * Returns:
@@ -32,7 +29,7 @@ function tt_build_subject_view($subject_id) {
 
     tt_ensure_time_slots($tset_id);
 
-    // Subject name (use your real schema: name + subject_initial)
+    // Subject name
     $subject_name = '';
     $stmtS = $conn->prepare("SELECT name, subject_initial FROM subjects WHERE school_id=? AND subject_id=? AND deleted_at IS NULL LIMIT 1");
     if ($stmtS) {
@@ -68,7 +65,9 @@ function tt_build_subject_view($subject_id) {
         $stmtT->close();
     }
 
+    // Allocation rows
     $rows = [];
+
     $sql = "
         SELECT
             t.day_of_week,
@@ -109,6 +108,7 @@ function tt_build_subject_view($subject_id) {
             $streamName = trim((string)($r['stream_name'] ?? ''));
             $classLabel = trim($className . ($streamName !== '' ? " {$streamName}" : ''));
 
+            // Prefer Initials > Full Name > Username
             $teacher = trim((string)($r['teacher_initials'] ?? ''));
             if ($teacher === '') $teacher = trim((string)($r['teacher_fullname'] ?? ''));
             if ($teacher === '') $teacher = trim((string)($r['teacher_username'] ?? ''));
@@ -142,33 +142,6 @@ $term_label = (string)($report['term'] ?? '');
 
 <style>
     .content { margin-left: 260px; padding: 24px; }
-
-    /* --- Print container (screen) --- */
-    .sp-paper{
-        background:#fff;
-        border:1px solid #e6e6e6;
-        border-radius:12px;
-        padding:16px;
-        width:100%;
-    }
-    .sp-print-header{
-        display:flex;
-        align-items:flex-start;
-        justify-content:space-between;
-        gap:12px;
-        flex-wrap:wrap;
-        margin-bottom:12px;
-    }
-    .sp-print-header .left .title{
-        font-weight:800;
-        font-size:16px;
-        margin:0;
-    }
-    .sp-print-header .left .term{
-        color:#666;
-        font-size:12px;
-        margin-top:2px;
-    }
 </style>
 
 <div class="content">
@@ -242,15 +215,7 @@ $term_label = (string)($report['term'] ?? '');
                     </button>
                 </div>
 
-                <!-- ✅ PRINT CONTAINER (this is what prints, NOT the dashboard) -->
-                <div id="subjectPrintArea" class="sp-paper">
-                    <div class="sp-print-header">
-                        <div class="left">
-                            <div class="title">Subject: <?= htmlspecialchars($subject_label) ?></div>
-                            <div class="term"><?= htmlspecialchars($term_label) ?></div>
-                        </div>
-                    </div>
-
+                <div id="subjectPrintArea">
                     <?php
                         $rows = $report['rows'] ?? [];
                         if (!$selected_subject_id) {
@@ -258,6 +223,7 @@ $term_label = (string)($report['term'] ?? '');
                         } elseif (empty($rows)) {
                             echo '<div class="alert alert-warning mb-0">No allocations found for this subject in saved stream timetables.</div>';
                         } else {
+                            // Group by day
                             $grouped = [];
                             foreach ($rows as $r) {
                                 $d = (string)($r['day'] ?? '');
@@ -300,39 +266,37 @@ $term_label = (string)($report['term'] ?? '');
     </div>
 </div>
 
-<script src="<?= htmlspecialchars($PRINT_ASSET_URL) ?>"></script>
-
-
+<script src="print.php?asset=tt_print"></script>
 <script>
 (function(){
-  "use strict";
+    "use strict";
 
-  const btn = document.getElementById("btnPrintSubject");
-  if(!btn) return;
-
-  btn.addEventListener("click", function(){
-    if (!window.TTPrint || typeof window.TTPrint.printTimetable !== "function") {
-      console.error("TTPrint not loaded. Check print.php asset URL / network 404.");
-      alert("Print engine not loaded. Check console/network for print.php?asset=tt_print");
-      return; // IMPORTANT: do NOT fallback to window.print()
+    function safeFileTitle(s){
+        return String(s || "").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
     }
 
-    window.TTPrint.printTimetable({
-      title: "Subject Allocation",
-      areaId: "subjectPrintArea",
-      orientation: "portrait",     // ✅ portrait for this report
-      pageSize: "A4",
-      margin: "10mm",
-      extraCss: `
-        body{ font-family: Arial, sans-serif; color:#111; padding: 12px; }
-        table{ width:100%; border-collapse:collapse; }
-        th,td{ border:1px solid #111; padding:8px; font-size:12px; }
-        thead th{ background:#f2f2f2; }
-      `
+    document.getElementById("btnPrintSubject")?.addEventListener("click", function(){
+        if (!window.TTPrint || typeof window.TTPrint.printTimetable !== "function") {
+            window.print();
+            return;
+        }
+
+        const subj = <?= json_encode($subject_label, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+        const title = "Subject - " + safeFileTitle(subj || "Allocation Report");
+
+        window.TTPrint.printTimetable({
+            title: title,
+            areaId: "subjectPrintArea",
+            extraCss: `
+                body{ font-family: Arial, sans-serif; padding: 18px; color:#111; }
+                .fw-bold{ font-weight:700; }
+                table{ width:100%; border-collapse:collapse; margin-top:8px; }
+                th,td{ border:2px solid #111; padding:8px; font-size:12px; }
+                thead th{ background:#f2f2f2; }
+            `
+        });
     });
-  });
 })();
 </script>
-
 
 <?php require_once __DIR__ . '/../footer.php'; ?>

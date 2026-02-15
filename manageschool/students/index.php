@@ -33,12 +33,14 @@ $totalStreams = count($streams);
 $stmt->close();
 
 // Fetch students for this school
+// Fetch students sorted by admission number (smallest → largest)
 $stmt = $conn->prepare("
     SELECT s.student_id, s.full_name, s.admission_no, s.gender, c.form_name, st.stream_name
     FROM students s
     JOIN classes c ON s.class_id = c.class_id
     JOIN streams st ON s.stream_id = st.stream_id
     WHERE s.school_id = ? AND s.deleted_at IS NULL
+    ORDER BY s.admission_no ASC
 ");
 $stmt->bind_param("i", $_SESSION['school_id']);
 $stmt->execute();
@@ -1310,23 +1312,45 @@ $totalStudents = count($students);
         });
 
         // Search and Filter Table
+        // Search and Filter Table – FIXED: only sort when actually filtering/searching
         $('#searchInput, #classFilter, #streamFilter').on('input change', function() {
-            const searchText = $('#searchInput').val().toLowerCase();
+            const searchText = $('#searchInput').val().toLowerCase().trim();
             const classFilter = $('#classFilter').val();
             const streamFilter = $('#streamFilter').val();
 
-            $('#studentTable tbody tr').each(function() {
-                const name = $(this).find('td:eq(1)').text().toLowerCase();
-                const admissionNo = $(this).find('td:eq(2)').text().toLowerCase();
-                const className = $(this).find('td:eq(3)').text();
-                const streamName = $(this).find('td:eq(4)').text();
+            const hasActiveFilter = searchText !== '' || classFilter !== '' || streamFilter !== '';
 
-                const matchesSearch = searchText === '' || name.includes(searchText) || admissionNo.includes(searchText);
-                const matchesClass = classFilter === '' || className === classFilter;
-                const matchesStream = streamFilter === '' || streamName === streamFilter;
+            const $rows = $('#studentTable tbody tr');
 
-                $(this).toggle(matchesSearch && matchesClass && matchesStream);
+            // 1. Show/hide rows based on filters
+            $rows.each(function() {
+                const $row = $(this);
+                const name = $row.find('td:eq(1)').text().toLowerCase();
+                const admissionNo = $row.find('td:eq(2)').text().toLowerCase();
+                const className = $row.find('td:eq(3)').text();
+                const streamName = $row.find('td:eq(4)').text();
+
+                const matchesSearch = !searchText || name.includes(searchText) || admissionNo.includes(searchText);
+                const matchesClass = !classFilter || className === classFilter;
+                const matchesStream = !streamFilter || streamName === streamFilter;
+
+                $row.toggle(matchesSearch && matchesClass && matchesStream);
             });
+
+            // 2. ONLY re-sort if user is actually filtering or searching
+            if (hasActiveFilter) {
+                const visibleRows = $rows.filter(':visible').get();
+                visibleRows.sort((a, b) => {
+                    const aAdm = $(a).find('td:eq(2)').text().trim();
+                    const bAdm = $(b).find('td:eq(2)').text().trim();
+                    return aAdm.localeCompare(bAdm, undefined, {
+                        numeric: true,
+                        sensitivity: 'base'
+                    });
+                });
+                $('#studentTable tbody').empty().append(visibleRows);
+            }
+            // If no filter → keep the original PHP-sorted order (100 → 300 → 100000)
         });
 
         // Existing handlers for Change Class, Change Stream, Add Stream, Delete Student
@@ -1580,13 +1604,17 @@ $totalStudents = count($students);
         });
     }
 
-    // Render students checkboxes + search (used in add & edit)
     function renderStudents(containerId, students, selectedIds = []) {
         const $container = $(`#${containerId}`).empty().data('students', students);
         if (!students.length) {
             $container.html('<p class="text-muted text-center py-3">No students available</p>');
             return;
         }
+
+        // ←←← SORT BY ADMISSION_NO ASC (smallest to largest) ←←←
+        students.sort((a, b) => a.admission_no.localeCompare(b.admission_no, undefined, {
+            numeric: true
+        }));
 
         function renderList(list) {
             $container.empty();
@@ -1604,7 +1632,6 @@ $totalStudents = count($students);
             `);
             });
         }
-
         renderList(students);
 
         const searchInput = containerId.includes('edit') ? '#studentSearchEdit' : '#studentSearchAdd';
@@ -1617,7 +1644,6 @@ $totalStudents = count($students);
             renderList(filtered);
         });
     }
-
     // Manage modal – load groups table (students column removed)
     $('#manageCustomGroupsModal').on('show.bs.modal', function() {
         ajaxDebug({
