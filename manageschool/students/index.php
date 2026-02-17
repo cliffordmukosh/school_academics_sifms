@@ -476,9 +476,24 @@ $totalStudents = count($students);
                                             Please select at least one subject
                                         </div>
                                     </div>
-
                                     <div class="col-md-6" id="addGroupStudentsSection" style="display: none;">
                                         <label class="form-label">Select Students <span class="text-danger">*</span></label>
+
+                                        <!-- New: small toolbar with download + upload -->
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <button type="button" class="btn btn-sm btn-outline-primary me-2" id="downloadAddStudentTemplate">
+                                                    <i class="bi bi-download"></i> Download Template
+                                                </button>
+                                                <div class="btn btn-sm btn-outline-success position-relative">
+                                                    <i class="bi bi-upload"></i> Upload Excel
+                                                    <input type="file" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
+                                                        id="uploadAddStudentsExcel" accept=".xlsx,.xls" style="cursor:pointer;">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Only admission_no is used</small>
+                                        </div>
+
                                         <div class="border p-3 rounded" style="max-height: 280px; overflow-y: auto;">
                                             <div class="mb-2">
                                                 <input type="text" class="form-control" id="studentSearchAdd" placeholder="Search by name or admission no...">
@@ -546,6 +561,22 @@ $totalStudents = count($students);
 
                                     <div class="col-md-6" id="editGroupStudentsSection">
                                         <label class="form-label">Select Students <span class="text-danger">*</span></label>
+
+                                        <!-- New: small toolbar with download + upload -->
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <button type="button" class="btn btn-sm btn-outline-primary me-2" id="downloadEditStudentTemplate">
+                                                    <i class="bi bi-download"></i> Download Template
+                                                </button>
+                                                <div class="btn btn-sm btn-outline-success position-relative">
+                                                    <i class="bi bi-upload"></i> Upload Excel
+                                                    <input type="file" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
+                                                        id="uploadEditStudentsExcel" accept=".xlsx,.xls" style="cursor:pointer;">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Only admission_no is used</small>
+                                        </div>
+
                                         <div class="border p-3 rounded" style="max-height: 280px; overflow-y: auto;">
                                             <div class="mb-2">
                                                 <input type="text" class="form-control" id="studentSearchEdit" placeholder="Search by name or admission no...">
@@ -1809,7 +1840,141 @@ $totalStudents = count($students);
             }
         });
     });
+    // ────────────────────────────────────────────────
+    // Download template (same for add & edit)
+    // ────────────────────────────────────────────────
+    function downloadStudentTemplate() {
+        // You can also make this come from PHP if you prefer
+        const link = document.createElement('a');
+        link.href = 'students/functions.php?action=download_custom_group_template';
+        link.download = 'custom_group_students_template.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 
+    $('#downloadAddStudentTemplate, #downloadEditStudentTemplate').on('click', downloadStudentTemplate);
+
+
+    // ────────────────────────────────────────────────
+    // Upload Excel → auto-check matching students (FIXED & ROBUST)
+    // ────────────────────────────────────────────────
+    function handleStudentExcelUpload(fileInput, listContainerId) {
+        const file = fileInput.files[0];
+        if (!file) {
+            alert("No file selected.");
+            return;
+        }
+
+        // Get selected class ID (from add or edit modal)
+        let classId = $('#addGroupClassSelect').val() || $('#editGroupClassSelect').val() || '';
+
+        if (!classId || classId === '') {
+            alert('Please select a class first before uploading the Excel file.');
+            fileInput.value = ''; // clear the file input
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('students_excel', file);
+        formData.append('action', 'process_group_student_excel');
+        formData.append('class_id', classId);
+
+        $.ajax({
+            url: 'students/functions.php',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                console.log('RAW RESPONSE FROM SERVER:', response);
+
+                let jsonData;
+
+                // Case 1: jQuery already parsed it as object (most common now)
+                if (response && typeof response === 'object' && response.status) {
+                    jsonData = response;
+                }
+                // Case 2: it's still a string (older behavior or Content-Type issue)
+                else if (typeof response === 'string' && response.trim() !== '') {
+                    let cleaned = response.trim();
+
+                    // Try to extract JSON if there's junk before/after
+                    const jsonMatch = cleaned.match(/(\{[\s\S]*\})/);
+                    if (jsonMatch) {
+                        cleaned = jsonMatch[1];
+                    }
+
+                    try {
+                        jsonData = JSON.parse(cleaned);
+                    } catch (parseError) {
+                        console.error('JSON parse failed on cleaned string:', parseError);
+                        console.log('Failed cleaned string was:', cleaned);
+                        alert('Server response is not valid JSON format. Check browser console (F12).');
+                        return;
+                    }
+                }
+                // Case 3: empty or unexpected type
+                else {
+                    console.error('Invalid response type or empty:', response);
+                    alert('Server returned empty or invalid response. Check console.');
+                    return;
+                }
+
+                // ── Now process the valid JSON data ──
+                if (jsonData.status === 'success') {
+                    let found = 0;
+
+                    // Make sure found_students is an array
+                    const foundStudents = Array.isArray(jsonData.found_students) ?
+                        jsonData.found_students : [];
+
+                    foundStudents.forEach(studentId => {
+                        const $checkbox = $(`#${listContainerId} input[value="${studentId}"]`);
+                        if ($checkbox.length > 0) {
+                            $checkbox.prop('checked', true);
+                            found++;
+                        }
+                    });
+
+                    if (found > 0) {
+                        alert(`Successfully auto-selected ${found} student(s) from the Excel file!`);
+                    } else {
+                        alert('No matching students found in the selected class.\nCheck if admission numbers match exactly.');
+                    }
+
+                    // Show skipped ones in console (for debugging)
+                    if (jsonData.skipped && jsonData.skipped.length > 0) {
+                        console.warn('These admission numbers were not found:', jsonData.skipped);
+                    }
+                } else {
+                    alert(jsonData.message || 'Error from server. Please try again.');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX upload error:', status, error, xhr.responseText);
+                alert('Upload failed: ' + (xhr.responseText || 'Server connection error'));
+            }
+        });
+    }
+
+    // Bind the function (keep your existing bindings)
+    $('#uploadAddStudentsExcel').on('change', function() {
+        handleStudentExcelUpload(this, 'addGroupStudentsList');
+    });
+
+    $('#uploadEditStudentsExcel').on('change', function() {
+        handleStudentExcelUpload(this, 'editGroupStudentsList');
+    });
+    // Bind upload for ADD modal
+    $('#uploadAddStudentsExcel').on('change', function() {
+        handleStudentExcelUpload(this, 'addGroupStudentsList');
+    });
+
+    // Bind upload for EDIT modal
+    $('#uploadEditStudentsExcel').on('change', function() {
+        handleStudentExcelUpload(this, 'editGroupStudentsList');
+    });
     // Delete
     $(document).on('click', '.delete-group', function() {
         if (!confirm('Delete this group?')) return;

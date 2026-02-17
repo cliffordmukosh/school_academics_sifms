@@ -1145,7 +1145,98 @@ case 'download_excel_template':
 
         $stmt->close();
         break;
+    // ────────────────────────────────────────────────
+    // Download very simple template
+    // ────────────────────────────────────────────────
+    case 'download_custom_group_template':
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
 
+        $sheet->setCellValue('A1', 'admission_no');
+        $sheet->setCellValue('B1', 'student_name');
+
+        // 3 example rows
+        $sheet->setCellValue('A2', '1001');
+        $sheet->setCellValue('B2', 'John Kamau');
+        $sheet->setCellValue('A3', '1002');
+        $sheet->setCellValue('B3', 'Mary Wanjiku');
+        $sheet->setCellValue('A4', '1003');
+        $sheet->setCellValue('B4', 'Peter Omondi');
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="group_students_template.xlsx"');
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+        
+    case 'process_group_student_excel':
+        if (!isset($_FILES['students_excel']) || $_FILES['students_excel']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['status' => 'error', 'message' => 'No file uploaded']);
+            exit;
+        }
+
+        // Get class_id safely (this is what was missing / causing the crash)
+        $current_class_id = isset($_POST['class_id']) && is_numeric($_POST['class_id'])
+            ? (int)$_POST['class_id']
+            : 0;
+
+        if ($current_class_id <= 0) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'No valid class selected. Please select a class first.'
+            ]);
+            exit;
+        }
+
+        try {
+            $spreadsheet = IOFactory::load($_FILES['students_excel']['tmp_name']);
+            $sheet = $spreadsheet->getActiveSheet();
+            $data = $sheet->toArray(null, true, true, true);
+            array_shift($data); // skip header
+
+            $found = [];
+            $skipped = [];
+
+            foreach ($data as $row) {
+                $adm_no = trim($row['A'] ?? '');
+                if (empty($adm_no)) continue;
+
+                // Now bind using simple variables only
+                $stmt = $conn->prepare("
+                SELECT student_id 
+                FROM students 
+                WHERE school_id = ? 
+                  AND admission_no = ?
+                  AND class_id = ?
+                  AND deleted_at IS NULL
+                LIMIT 1
+            ");
+                $stmt->bind_param("isi", $school_id, $adm_no, $current_class_id);
+
+                $stmt->execute();
+                $res = $stmt->get_result();
+
+                if ($res->num_rows === 1) {
+                    $r = $res->fetch_assoc();
+                    $found[] = (int)$r['student_id'];
+                } else {
+                    $skipped[] = $adm_no;
+                }
+                $stmt->close();
+            }
+
+            echo json_encode([
+                'status'         => 'success',
+                'found_students' => array_unique($found),
+                'skipped'        => $skipped
+            ]);
+        } catch (Exception $e) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'Could not read Excel: ' . $e->getMessage()
+            ]);
+        }
+        exit;
     default:
         echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
         break;

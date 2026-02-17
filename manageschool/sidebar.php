@@ -1,7 +1,7 @@
 <?php
 // sidebar.php
 
-// session_start();
+// session_start();  // usually already started higher up — keep commented if not needed here
 require __DIR__ . '/../connection/db.php';
 
 // Default values
@@ -48,7 +48,11 @@ $enable_dashboard = true;
 $enable_exams     = true;
 $enable_timetable = $allow_timetable_for_this_teacher;
 
-// For teachers: most items are disabled
+// NEW: enable these two sections for teachers
+$enable_analysis  = $is_teacher ? true : true;   // true for everyone (or customize later)
+$enable_cbc       = $is_teacher ? true : true;
+
+// For teachers: most items are still disabled — we'll override only the ones we want
 $teacher_disabled_class = $is_teacher ? ' disabled-menu-item' : '';
 ?>
 
@@ -106,8 +110,8 @@ $teacher_disabled_class = $is_teacher ? ' disabled-menu-item' : '';
       </a>
     </li>
 
-    <!-- Analysis & Reports -->
-    <li class="nav-item mb-2<?= $teacher_disabled_class ?>">
+    <!-- Analysis & Reports – now enabled for teachers -->
+    <li class="nav-item mb-2<?= $enable_analysis ? '' : $teacher_disabled_class ?>">
       <a class="nav-link d-flex align-items-center text-dark load-page" href="reports/index.php">
         <i class="bi bi-graph-up me-2" style="font-weight:700; color:#3498db;"></i> Analysis & Reports
       </a>
@@ -120,8 +124,8 @@ $teacher_disabled_class = $is_teacher ? ' disabled-menu-item' : '';
       </a>
     </li>
 
-    <!-- CBC Analysis -->
-    <li class="nav-item mb-2<?= $teacher_disabled_class ?>">
+    <!-- CBC Analysis – now enabled for teachers -->
+    <li class="nav-item mb-2<?= $enable_cbc ? '' : $teacher_disabled_class ?>">
       <a class="nav-link d-flex align-items-center text-dark load-page" href="cbcanalysis/index.php">
         <i class="bi bi-grid-1x2 me-2" style="font-weight:700; color:#6f42c1;"></i>
         CBC Analysis
