@@ -102,21 +102,37 @@ $totalStudents = count($students);
                     </div>
                 </div>
             </div>
+            <!-- One row containing both cards side-by-side -->
+            <div class="row g-4 mb-4">
+                <!-- Bulk Update Students Card -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm border-0 h-100 text-center">
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <i class="bi bi-arrow-up-square-fill display-4 text-primary"></i>
+                            <h5 class="mt-3">Bulk Update Students</h5>
+                            <p class="text-muted small mb-3">Update many records at once via Excel</p>
+                            <button class="btn btn-primary mt-auto" id="btnOpenBulkUpdateWizard">
+                                <i class="bi bi-file-earmark-arrow-up me-2"></i> Start Bulk Update
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-            <!-- Custom Groups Card -->
-            <div class="col-md-4">
-                <div class="card shadow-sm border-0 h-100 text-center">
-                    <div class="card-body d-flex flex-column justify-content-center">
-                        <i class="bi bi-collection display-5 text-warning"></i>
-                        <h5 class="mt-3">Custom Groups</h5>
-                        <p class="text-muted">Create and manage custom student groups by class, subjects, and students.</p>
-                        <div class="mt-auto">
-                            <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#manageCustomGroupsModal">
-                                <i class="bi bi-gear me-2"></i> Manage Groups
-                            </button>
-                            <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addCustomGroupModal">
-                                <i class="bi bi-plus-circle me-2"></i> Add New Group
-                            </button>
+                <!-- Custom Groups Card -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm border-0 h-100 text-center">
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <i class="bi bi-collection display-5 text-warning"></i>
+                            <h5 class="mt-3">Custom Groups</h5>
+                            <p class="text-muted">Create and manage custom student groups by class, subjects, and students.</p>
+                            <div class="mt-auto">
+                                <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#manageCustomGroupsModal">
+                                    <i class="bi bi-gear me-2"></i> Manage Groups
+                                </button>
+                                <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addCustomGroupModal">
+                                    <i class="bi bi-plus-circle me-2"></i> Add New Group
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -983,7 +999,113 @@ $totalStudents = count($students);
         </div>
     </div>
 </div>
+
+
+
+<!-- Bulk Update Wizard Modal -->
+<div class="modal fade" id="bulkUpdateWizardModal" tabindex="-1" aria-labelledby="bulkUpdateLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="bulkUpdateLabel">
+                    <i class="bi bi-arrow-up-square me-2 text-primary"></i> Bulk Student Update
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- Stepper -->
+                <div class="d-flex justify-content-between mb-4 px-4" style="max-width: 900px; margin: 0 auto;">
+                    <div class="text-center">
+                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto mb-2" style="width:40px;height:40px;font-weight:bold;" id="step1-circle">1</div>
+                        <small>Select Fields</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mx-auto mb-2" style="width:40px;height:40px;font-weight:bold;" id="step2-circle">2</div>
+                        <small>Download Template</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mx-auto mb-2" style="width:40px;height:40px;font-weight:bold;" id="step3-circle">3</div>
+                        <small>Upload & Preview</small>
+                    </div>
+                    <div class="text-center">
+                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center mx-auto mb-2" style="width:40px;height:40px;font-weight:bold;" id="step4-circle">4</div>
+                        <small>Confirm</small>
+                    </div>
+                </div>
+
+                <!-- Step 1 -->
+                <div id="step1" class="step-content">
+                    <h6 class="mb-3">Select fields to update <small class="text-muted">(admission_no is always included as key)</small></h6>
+                    <div class="row g-3" id="fieldCheckboxes"></div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button class="btn btn-primary" id="btnGenerateTemplate">Next → Generate Template</button>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div id="step2" class="step-content d-none text-center py-5">
+                    <i class="bi bi-file-earmark-excel display-1 text-success mb-3"></i>
+                    <h5>Template is ready</h5>
+                    <p class="text-muted">Download, fill it, then proceed to upload.</p>
+                    <a href="#" id="downloadTemplateLink" class="btn btn-success btn-lg mt-3" download="bulk_update_students.xlsx">
+                        <i class="bi bi-download me-2"></i> Download Template
+                    </a>
+
+                    <div class="d-flex justify-content-between mt-5">
+                        <button class="btn btn-outline-secondary" id="btnBackToStep1">← Back</button>
+                        <button class="btn btn-primary" id="btnGoToUpload">I've filled it → Next</button>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div id="step3" class="step-content d-none">
+                    <h6 class="mb-3">Upload your filled Excel file</h6>
+                    <input type="file" id="bulkExcelFile" accept=".xlsx,.xls" class="form-control mb-4">
+
+                    <div class="table-responsive" style="max-height:360px; overflow-y:auto; border:1px solid #dee2e6; border-radius:6px;">
+                        <table class="table table-sm table-bordered table-hover mb-0" id="previewTable">
+                            <thead class="table-light sticky-top">
+                                <tr id="previewHeader"></tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info mt-3 small d-none" id="previewInfo">
+                        <i class="bi bi-info-circle me-2"></i><span id="previewSummary"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <button class="btn btn-outline-secondary" id="btnBackToStep2">← Back</button>
+                        <button class="btn btn-success" id="btnConfirmUpdate" disabled>Confirm & Update</button>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div id="step4" class="step-content d-none text-center py-5">
+                    <div id="successResult" class="d-none">
+                        <i class="bi bi-check-circle-fill display-1 text-success"></i>
+                        <h4 class="mt-3">Update Complete!</h4>
+                        <p class="text-muted" id="successMessage"></p>
+                    </div>
+                    <div id="errorResult" class="d-none">
+                        <i class="bi bi-exclamation-triangle-fill display-1 text-danger"></i>
+                        <h4 class="mt-3 text-danger">Update Failed</h4>
+                        <p class="text-muted" id="errorMessage"></p>
+                    </div>
+                    <button class="btn btn-primary mt-4" data-bs-dismiss="modal">Close</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
 <script>
     $(document).ready(function() {
         const streams = <?php echo json_encode($streams); ?>;
@@ -1990,6 +2112,295 @@ $totalStudents = count($students);
                 alert(json.message);
                 if (json.status === 'success') location.reload();
             }
+        });
+    });
+
+    // Bulk Update Wizard Logic
+    $(document).ready(function() {
+
+        const updatableFields = [{
+                name: 'full_name',
+                label: 'Full Name'
+            },
+            {
+                name: 'gender',
+                label: 'Gender'
+            },
+            {
+                name: 'dob',
+                label: 'Date of Birth'
+            },
+            {
+                name: 'primary_phone',
+                label: 'Primary Phone'
+            },
+            {
+                name: 'secondary_phone',
+                label: 'Secondary Phone'
+            },
+            {
+                name: 'date_of_admission',
+                label: 'Date of Admission'
+            },
+            {
+                name: 'upi',
+                label: 'UPI'
+            },
+            {
+                name: 'kcpe_index',
+                label: 'KCPE Index'
+            },
+            {
+                name: 'kcpe_score',
+                label: 'KCPE Score'
+            },
+            {
+                name: 'kcpe_grade',
+                label: 'KCPE Grade'
+            },
+            {
+                name: 'kcpe_year',
+                label: 'KCPE Year'
+            },
+            {
+                name: 'index_number',
+                label: 'Index Number'
+            },
+            {
+                name: 'previous_school',
+                label: 'Previous School'
+            },
+            {
+                name: 'primary_school',
+                label: 'Primary School'
+            },
+            {
+                name: 'guardian_name',
+                label: 'Guardian Name'
+            },
+            {
+                name: 'guardian_relation',
+                label: 'Guardian Relation'
+            },
+            {
+                name: 'primary_phone_2',
+                label: 'Guardian Primary Phone'
+            },
+            {
+                name: 'secondary_phone_2',
+                label: 'Guardian Secondary Phone'
+            },
+            {
+                name: 'birth_cert_number',
+                label: 'Birth Certificate No'
+            },
+            {
+                name: 'nationality',
+                label: 'Nationality'
+            },
+            {
+                name: 'place_of_birth',
+                label: 'Place of Birth'
+            },
+            {
+                name: 'nhif',
+                label: 'NHIF Number'
+            },
+            {
+                name: 'general_comments',
+                label: 'General Comments'
+            },
+            {
+                name: 'entry_position',
+                label: 'Entry Position'
+            },
+            // ─── New name-based fields ───
+            {
+                name: 'class_name',
+                label: 'Class (e.g. Form 2)'
+            },
+            {
+                name: 'stream_name',
+                label: 'Stream (e.g. East)'
+            },
+            {
+                name: 'house_name',
+                label: 'House (e.g. Chui House)'
+            }
+        ];
+
+        let selectedFields = [];
+        let previewData = [];
+
+        // Open wizard
+        $('#btnOpenBulkUpdateWizard').on('click', function() {
+            resetWizard();
+            $('#bulkUpdateWizardModal').modal('show');
+            loadFields();
+        });
+
+        function resetWizard() {
+            $('.step-content').addClass('d-none');
+            $('#step1').removeClass('d-none');
+            $('.rounded-circle').removeClass('bg-primary').addClass('bg-secondary').text(function(i, t) {
+                return i + 1;
+            });
+            $('#step1-circle').removeClass('bg-secondary').addClass('bg-primary');
+            selectedFields = [];
+            previewData = [];
+            $('#bulkExcelFile').val('');
+            $('#previewTable thead tr, #previewTable tbody').empty();
+            $('#btnConfirmUpdate').prop('disabled', true);
+        }
+
+        function loadFields() {
+            const $box = $('#fieldCheckboxes').empty();
+            updatableFields.forEach(f => {
+                $box.append(`
+                <div class="col-md-4 col-lg-3">
+                    <div class="form-check border rounded p-3" style="transition:0.2s;">
+                        <input class="form-check-input" type="checkbox" name="bulk_fields" value="${f.name}" id="bf_${f.name}">
+                        <label class="form-check-label" for="bf_${f.name}">${f.label}</label>
+                    </div>
+                </div>
+            `);
+            });
+        }
+
+        // Generate template
+        $('#btnGenerateTemplate').on('click', function() {
+            selectedFields = $('input[name="bulk_fields"]:checked').map(function() {
+                return $(this).val();
+            }).get();
+
+            if (selectedFields.length === 0) {
+                alert("Please select at least one field to update.");
+                return;
+            }
+
+            const columns = ['admission_no', ...selectedFields];
+
+            $.ajax({
+                url: 'students/functions.php',
+                method: 'POST',
+                data: {
+                    action: 'generate_bulk_update_template',
+                    fields: JSON.stringify(columns)
+                },
+                xhrFields: {
+                    responseType: 'blob'
+                },
+                success: function(blob) {
+                    const url = window.URL.createObjectURL(blob);
+                    $('#downloadTemplateLink').attr({
+                        href: url,
+                        download: 'bulk_update_students.xlsx'
+                    });
+                    goToStep(2);
+                },
+                error: function() {
+                    alert("Failed to create template.");
+                }
+            });
+        });
+
+        // Navigation
+        $('#btnBackToStep1').click(() => goToStep(1));
+        $('#btnBackToStep2').click(() => goToStep(2));
+        $('#btnGoToUpload').click(() => goToStep(3));
+
+        function goToStep(n) {
+            $('.step-content').addClass('d-none');
+            $(`#step${n}`).removeClass('d-none');
+            $('.rounded-circle').removeClass('bg-primary').addClass('bg-secondary');
+            for (let i = 1; i <= n; i++) {
+                $(`#step${i}-circle`).removeClass('bg-secondary').addClass('bg-primary');
+            }
+        }
+
+        // Upload → Preview
+        $('#bulkExcelFile').on('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                const data = new Uint8Array(ev.target.result);
+                const wb = XLSX.read(data, {
+                    type: 'array'
+                });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(ws, {
+                    header: 1
+                });
+
+                renderPreview(json);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function renderPreview(data) {
+            if (data.length < 2) {
+                alert("File is empty.");
+                return;
+            }
+
+            const headers = data[0];
+            const rows = data.slice(1);
+
+            if (!headers.includes('admission_no')) {
+                alert("Missing 'admission_no' column.");
+                $('#btnConfirmUpdate').prop('disabled', true);
+                return;
+            }
+
+            $('#previewHeader').html(headers.map(h => `<th class="text-center">${h}</th>`).join(''));
+            $('#previewBody').html(
+                rows.slice(0, 50).map(row => `<tr>${row.map(v => `<td>${v??''}</td>`).join('')}</tr>`).join('')
+            );
+
+            $('#previewSummary').text(`Found ${rows.length} records (showing first 50)`);
+            $('#previewInfo').removeClass('d-none');
+            $('#btnConfirmUpdate').prop('disabled', false);
+        }
+
+        // Confirm & Update
+        $('#btnConfirmUpdate').on('click', function() {
+            if (!confirm("Update all matching students?\nThis cannot be undone.")) return;
+
+            const fd = new FormData();
+            fd.append('action', 'bulk_update_students');
+            fd.append('file', $('#bulkExcelFile')[0].files[0]);
+
+            $.ajax({
+                url: 'students/functions.php',
+                type: 'POST',
+                data: fd,
+                contentType: false,
+                processData: false,
+                success: function(res) {
+                    try {
+                        const r = JSON.parse(res);
+                        if (r.status === 'success') {
+                            $('#successMessage').text(`Updated ${r.updated} students. ${r.skipped} skipped.`);
+                            $('#successResult').removeClass('d-none');
+                            $('#errorResult').addClass('d-none');
+                            goToStep(4);
+                            setTimeout(() => location.reload(), 3000);
+                        } else {
+                            $('#errorMessage').text(r.message || 'Update failed.');
+                            $('#errorResult').removeClass('d-none');
+                            $('#successResult').addClass('d-none');
+                            goToStep(4);
+                        }
+                    } catch (e) {
+                        alert("Server response error.");
+                    }
+                },
+                error: function() {
+                    alert("Connection failed.");
+                }
+            });
         });
     });
 </script>

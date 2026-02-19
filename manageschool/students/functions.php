@@ -1,5 +1,6 @@
 <?php
 // students/functions.php
+ob_start();
 session_start();
 require __DIR__ . '/../../connection/db.php';
 require __DIR__ . '/../../vendor/autoload.php';
@@ -1237,10 +1238,247 @@ case 'download_excel_template':
             ]);
         }
         exit;
+
+
+        // ────────────────────────────────────────────────
+        //     GENERATE BULK UPDATE TEMPLATE
+        // ────────────────────────────────────────────────
+    case 'generate_bulk_update_template':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            http_response_code(403);
+            echo json_encode(['status' => 'error', 'message' => 'No permission']);
+            exit;
+        }
+
+        $fields = json_decode($_POST['fields'] ?? '[]', true);
+        if (empty($fields) || !in_array('admission_no', $fields)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid fields']);
+            exit;
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $col = 'A';
+        foreach ($fields as $f) {
+            $sheet->setCellValue($col . '1', $f);
+            $col++;
+        }
+
+        // Example rows
+        $sheet->setCellValue('A2', 'ADM001'); // admission_no
+        $sheet->setCellValue('A3', 'ADM002');
+
+        foreach (range('A', $col) as $c) {
+            $sheet->getColumnDimension($c)->setAutoSize(true);
+        }
+
+        ob_start();
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="bulk_update_students.xlsx"');
+        echo $content;
+        exit;
+
+        // ────────────────────────────────────────────────
+    case 'bulk_update_students':
+        if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'No permission']);
+            exit;
+        }
+
+        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['status' => 'error', 'message' => 'No file or upload error']);
+            exit;
+        }
+
+        try {
+            $spreadsheet = IOFactory::load($_FILES['file']['tmp_name']);
+            $sheet = $spreadsheet->getActiveSheet();
+            $data = $sheet->toArray(null, true, true, true);
+
+            $headers = array_shift($data);
+            $admIndex = array_search('admission_no', $headers);
+
+            if ($admIndex === false) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing admission_no column']);
+                exit;
+            }
+
+            $updated = 0;
+            $skipped = 0;
+            $currentYear = date('Y'); // or get from school_settings if you track per term/year
+
+            foreach ($data as $row) {
+                $admission_no = trim($row[$admIndex] ?? '');
+                if (empty($admission_no)) continue;
+
+                // 1. Get student_id first (needed for house assignment)
+                $stmt = $conn->prepare("
+                SELECT student_id 
+                FROM students 
+                WHERE school_id = ? AND admission_no = ? AND deleted_at IS NULL
+                LIMIT 1
+            ");
+                $stmt->bind_param("is", $school_id, $admission_no);
+                $stmt->execute();
+                $res = $stmt->get_result();
+
+                if ($res->num_rows === 0) {
+                    $skipped++;
+                    $stmt->close();
+                    continue;
+                }
+
+                $student = $res->fetch_assoc();
+                $student_id = $student['student_id'];
+                $stmt->close();
+
+                // 2. Collect normal field updates (class_id, stream_id, everything except house)
+                $updates = [];
+                $houseName = null;
+
+                foreach ($headers as $i => $col) {
+                    if ($col === 'admission_no') continue;
+
+                    $val = trim($row[$i] ?? '');
+                    if ($val === '') continue;
+
+                    if ($col === 'house_name') {
+                        $houseName = $val;
+                        continue;
+                    }
+
+                    if (in_array($col, ['class_name', 'stream_name'])) {
+                        $idField = str_replace('_name', '_id', $col);
+                        $table   = $col === 'class_name' ? 'classes' : 'streams';
+                        $nameCol = $col === 'class_name' ? 'form_name' : 'stream_name';
+
+                        $extra = $col === 'stream_name' ? " AND class_id = (SELECT class_id FROM students WHERE student_id = ?)" : "";
+
+                        $stmt2 = $conn->prepare("
+                        SELECT $idField FROM $table 
+                        WHERE $nameCol = ? AND school_id = ? $extra
+                        LIMIT 1
+                    ");
+
+                        if ($col === 'stream_name') {
+                            $stmt2->bind_param("sis", $val, $school_id, $student_id);
+                        } else {
+                            $stmt2->bind_param("si", $val, $school_id);
+                        }
+
+                        $stmt2->execute();
+                        $res2 = $stmt2->get_result();
+
+                        if ($res2->num_rows === 0) {
+                            $skipped++;
+                            $stmt2->close();
+                            continue 2; // skip whole row
+                        }
+
+                        $id = $res2->fetch_assoc()[$idField];
+                        $updates[$idField] = $id;
+                        $stmt2->close();
+                    } else {
+                        // normal string/numeric field
+                        $updates[$col] = $val;
+                    }
+                }
+
+                // 3. Do the main students table update (if any fields changed)
+                $mainUpdated = false;
+                if (!empty($updates)) {
+                    $setParts = [];
+                    $params = [];
+                    $types = '';
+
+                    foreach ($updates as $field => $val) {
+                        $setParts[] = "$field = ?";
+                        $params[] = $val;
+                        $types .= is_int($val) ? 'i' : 's';
+                    }
+
+                    $setClause = implode(', ', $setParts);
+
+                    $stmt3 = $conn->prepare("
+                    UPDATE students 
+                    SET $setClause 
+                    WHERE student_id = ? AND school_id = ?
+                ");
+
+                    $params[] = $student_id;
+                    $params[] = $school_id;
+                    $types .= 'ii';
+
+                    $stmt3->bind_param($types, ...$params);
+                    $mainUpdated = $stmt3->execute() && $stmt3->affected_rows > 0;
+                    $stmt3->close();
+                }
+
+                // 4. Handle house assignment separately (upsert style)
+                if ($houseName !== null) {
+                    // Find house_id by name
+                    $stmtH = $conn->prepare("
+                    SELECT house_id 
+                    FROM houses 
+                    WHERE school_id = ? AND name = ?
+                    LIMIT 1
+                ");
+                    $stmtH->bind_param("is", $school_id, $houseName);
+                    $stmtH->execute();
+                    $resH = $stmtH->get_result();
+
+                    if ($resH->num_rows === 0) {
+                        $skipped++;
+                        $stmtH->close();
+                        continue;
+                    }
+
+                    $house_id = $resH->fetch_assoc()['house_id'];
+                    $stmtH->close();
+
+                    // Upsert into student_houses (set is_current=1, update if exists)
+                    $stmtUpsert = $conn->prepare("
+                    INSERT INTO student_houses 
+                        (student_id, house_id, assigned_at, academic_year, is_current)
+                    VALUES (?, ?, CURDATE(), ?, 1)
+                    ON DUPLICATE KEY UPDATE 
+                        house_id = VALUES(house_id),
+                        assigned_at = CURDATE(),
+                        is_current = 1
+                ");
+
+                    $stmtUpsert->bind_param("iii", $student_id, $house_id, $currentYear);
+                    $stmtUpsert->execute();
+                    $stmtUpsert->close();
+                }
+
+                if ($mainUpdated || $houseName !== null) {
+                    $updated++;
+                } else {
+                    $skipped++;
+                }
+            }
+
+            echo json_encode([
+                'status'  => 'success',
+                'updated' => $updated,
+                'skipped' => $skipped,
+                'message' => "Processed $updated successful updates, $skipped skipped/failed."
+            ]);
+        } catch (Exception $e) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'Processing failed: ' . $e->getMessage()
+            ]);
+        }
+        break;
     default:
         echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
         break;
 }
-
-
-?>

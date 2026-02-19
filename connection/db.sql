@@ -1186,9 +1186,7 @@ CREATE TABLE custom_group_subjects (
     UNIQUE KEY unique_group_subject (group_id, subject_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                         
-
-
-                        -- Houses table - simple, per school
+-- Houses table - simple, per school
 CREATE TABLE houses (
     house_id     INT AUTO_INCREMENT PRIMARY KEY,
     school_id    INT NOT NULL,
@@ -1217,3 +1215,46 @@ CREATE TABLE student_houses (
 
 -- Optional small index if you often list students per house
 CREATE INDEX idx_house_students ON student_houses (house_id, is_current);
+
+-- 1. Dormitories (boarding houses per school)
+CREATE TABLE dormitories (
+    dormitory_id    INT AUTO_INCREMENT PRIMARY KEY,
+    school_id       INT NOT NULL,
+    name            VARCHAR(100) NOT NULL,           -- e.g. "Amani House", "Pembroke", "Unity"
+    short_code      VARCHAR(20) NULL,                -- e.g. "AMN", "PBK"
+    gender          ENUM('Boys','Girls','Mixed') DEFAULT 'Mixed',
+    capacity        INT DEFAULT 0,
+    description     TEXT NULL,
+    is_active       TINYINT(1) DEFAULT 1,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE,
+    UNIQUE KEY uk_dorm_name_school (school_id, name)
+);
+
+
+-- 2. Student → Dormitory assignment (main link table)
+--    → one student can have only one current dorm per year
+CREATE TABLE student_dormitory_assignments (
+    assignment_id   INT AUTO_INCREMENT PRIMARY KEY,
+    school_id       INT NOT NULL,
+    student_id      INT NOT NULL,
+    dormitory_id    INT NOT NULL,
+    academic_year   YEAR NOT NULL,                   -- 2025, 2026, etc.
+    assigned_at     DATE DEFAULT (CURRENT_DATE),
+    room_number     VARCHAR(30) NULL,                -- e.g. "A-204", "Block B 12"
+    bed_number      VARCHAR(20) NULL,
+    is_current      TINYINT(1) DEFAULT 1,
+    notes           TEXT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (school_id)     REFERENCES schools(school_id) ON DELETE CASCADE,
+    FOREIGN KEY (student_id)    REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (dormitory_id)  REFERENCES dormitories(dormitory_id) ON DELETE RESTRICT,
+    
+    -- Prevents duplicate current dorm per student per year
+    UNIQUE KEY uk_one_current_dorm (school_id, student_id, academic_year, is_current),
+    
+    -- Quick check: one dorm per student per year (even if not current)
+    UNIQUE KEY uk_student_year_dorm (school_id, student_id, academic_year, dormitory_id)
+);
