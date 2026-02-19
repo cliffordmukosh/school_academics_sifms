@@ -102,7 +102,13 @@ $teacher_disabled_class = $is_teacher ? ' disabled-menu-item' : '';
         <i class="bi bi-diagram-3 me-2" style="font-weight:700; color:#e67e22;"></i> Classes
       </a>
     </li>
-
+    <!-- Houses – visible to everyone for now (you can restrict later) -->
+    <li class="nav-item mb-2">
+      <a class="nav-link d-flex align-items-center text-dark load-page" href="houses/index.php">
+        <i class="bi bi-house-door-fill me-2" style="font-weight:700; color:#fd7e14;"></i>
+        Houses
+      </a>
+    </li>
     <!-- Exams – always enabled for teachers -->
     <li class="nav-item mb-2">
       <a class="nav-link d-flex align-items-center text-dark load-page" href="exams/index.php">

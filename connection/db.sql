@@ -1186,3 +1186,34 @@ CREATE TABLE custom_group_subjects (
     UNIQUE KEY unique_group_subject (group_id, subject_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                         
+
+
+                        -- Houses table - simple, per school
+CREATE TABLE houses (
+    house_id     INT AUTO_INCREMENT PRIMARY KEY,
+    school_id    INT NOT NULL,
+    name         VARCHAR(100) NOT NULL,          -- e.g. Simba, Nyota, Kipepeo, Tai
+    description  VARCHAR(255) NULL,               -- short optional description
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (school_id) REFERENCES schools(school_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_house_per_school (school_id, name)
+);
+
+
+-- Student → House assignment (one current house per student)
+CREATE TABLE student_houses (
+    student_id   INT NOT NULL,
+    house_id     INT NOT NULL,
+    assigned_at  DATE NOT NULL DEFAULT (CURRENT_DATE),
+    -- optional: allow changing house over time
+    academic_year YEAR NOT NULL,
+    is_current   TINYINT(1) DEFAULT 1,
+    
+    PRIMARY KEY (student_id, academic_year),
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (house_id)   REFERENCES houses(house_id) ON DELETE RESTRICT
+);
+
+-- Optional small index if you often list students per house
+CREATE INDEX idx_house_students ON student_houses (house_id, is_current);

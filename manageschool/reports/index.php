@@ -597,7 +597,7 @@ $stmt->close();
                             <form id="classListForm" action="reports/examreports/classlist.php" method="post">
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-4">
-                                        <label class="form-label">Form</label>
+                                        <label class="form-label">Form <span class="text-danger">*</span></label>
                                         <select class="form-select" id="classListClassId" name="class_id" required>
                                             <option value="">Select Form</option>
                                             <?php foreach ($classes as $class): ?>
@@ -608,15 +608,15 @@ $stmt->close();
                                         </select>
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label">Stream</label>
-                                        <select class="form-select" id="classListStreamId" name="stream_id" disabled required>
+                                        <label class="form-label">Stream <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="classListStreamId" name="stream_id" required disabled>
                                             <option value="">Select Stream</option>
                                         </select>
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label">Subject</label>
-                                        <select class="form-select" id="classListSubjectId" name="subject_id" disabled required>
-                                            <option value="">Select Subject</option>
+                                        <label class="form-label">Subject (optional)</label>
+                                        <select class="form-select" id="classListSubjectId" name="subject_id" disabled>
+                                            <option value="">— Any / No specific subject —</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1355,60 +1355,64 @@ $stmt->close();
             }
         });
 
-        // Handle Form Selection for class list
         $('#classListClassId').on('change', function() {
             const classId = $(this).val();
-            $('#classListStreamId').html('<option value="">Select Stream</option>').prop('disabled', true);
-            $('#classListSubjectId').html('<option value="">Select Subject</option>').prop('disabled', true);
+
+            $('#classListStreamId')
+                .html('<option value="">Select Stream</option>')
+                .prop('disabled', true);
+
+            $('#classListSubjectId')
+                .html('<option value="">— Any / No specific subject —</option>')
+                .prop('disabled', true);
+
             if (classId) {
-                // Load streams
+                // Load streams (required)
                 $.post('reports/functions.php', {
                     action: 'get_streams',
                     class_id: classId
                 }, function(response) {
-                    console.log('Streams Response (Class List):', response);
-                    if (response.status === 'success' && response.streams && response.streams.length > 0) {
+                    if (response.status === 'success' && response.streams?.length > 0) {
                         response.streams.forEach(stream => {
-                            $('#classListStreamId').append(`<option value="${stream.stream_id}">${stream.stream_name}</option>`);
+                            $('#classListStreamId').append(
+                                `<option value="${stream.stream_id}">${stream.stream_name}</option>`
+                            );
                         });
                         $('#classListStreamId').prop('disabled', false);
                     } else {
                         alert('No streams found for the selected form.');
                     }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load streams:', textStatus, errorThrown);
-                    alert('Failed to load streams.');
-                });
+                }, 'json');
 
-                // Load subjects
+                // Load subjects (optional – always enable select, even if empty)
                 $.post('reports/functions.php', {
                     action: 'get_subjects_for_class',
                     class_id: classId
                 }, function(response) {
-                    console.log('Subjects Response (Class List):', response);
-                    if (response.status === 'success' && response.subjects && response.subjects.length > 0) {
+                    if (response.status === 'success' && response.subjects?.length > 0) {
                         response.subjects.forEach(subject => {
-                            $('#classListSubjectId').append(`<option value="${subject.subject_id}">${subject.name}</option>`);
+                            $('#classListSubjectId').append(
+                                `<option value="${subject.subject_id}">${subject.name}</option>`
+                            );
                         });
-                        $('#classListSubjectId').prop('disabled', false);
-                    } else {
-                        alert('No subjects found for the selected form.');
                     }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load subjects:', textStatus, errorThrown);
-                    alert('Failed to load subjects.');
-                });
+                    // Always enable – even if no subjects
+                    $('#classListSubjectId').prop('disabled', false);
+                }, 'json');
             }
         });
+
+
 
         // Validate class list form before submission
         $('#classListForm').on('submit', function(e) {
             const classId = $('#classListClassId').val();
             const streamId = $('#classListStreamId').val();
-            const subjectId = $('#classListSubjectId').val();
-            if (!classId || !streamId || !subjectId) {
+            // const subjectId = $('#classListSubjectId').val();  ← no longer required
+
+            if (!classId || !streamId) {
                 e.preventDefault();
-                alert('Please select form, stream, and subject.');
+                alert('Please select Form and Stream.');
             }
         });
 

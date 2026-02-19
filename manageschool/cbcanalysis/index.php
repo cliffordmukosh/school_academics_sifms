@@ -578,13 +578,15 @@ $stmt->close();
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title d-flex align-items-center">
-                                <i class="bi bi-list-check me-2"></i> Select Form, Stream, and Subject
+                                <i class="bi bi-list-check me-2"></i> Select Form, Stream or Custom Group
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <form id="classListForm" action="cbcanalysis/examreports/classlist.php" method="post">
                                 <div class="row g-3 mb-3">
+
+                                    <!-- Form -->
                                     <div class="col-md-4">
                                         <label class="form-label">Form</label>
                                         <select class="form-select" id="classListClassId" name="class_id" required>
@@ -596,21 +598,35 @@ $stmt->close();
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
+
+                                    <!-- Stream -->
                                     <div class="col-md-4">
                                         <label class="form-label">Stream</label>
-                                        <select class="form-select" id="classListStreamId" name="stream_id" disabled required>
-                                            <option value="">Select Stream</option>
+                                        <select class="form-select" id="classListStreamId" name="stream_id" disabled>
+                                            <option value="">Select Stream (optional)</option>
                                         </select>
                                     </div>
+
+                                    <!-- Custom Group -->
                                     <div class="col-md-4">
-                                        <label class="form-label">Subject</label>
-                                        <select class="form-select" id="classListSubjectId" name="subject_id" disabled required>
-                                            <option value="">Select Subject</option>
+                                        <label class="form-label">Custom Group</label>
+                                        <select class="form-select" id="classListGroupId" name="group_id" disabled>
+                                            <option value="">Select Custom Group (optional)</option>
                                         </select>
                                     </div>
+
                                 </div>
+
+                                <!-- Note to user -->
+                                <div class="alert alert-info small mb-3">
+                                    Select <strong>either</strong> a Stream <strong>or</strong> a Custom Group (not both).
+                                    If Custom Group is chosen, subjects from that group will be used.
+                                </div>
+
                                 <input type="hidden" name="school_id" value="<?php echo htmlspecialchars($school_id); ?>">
-                                <button type="submit" class="btn btn-primary" id="generateClassListBtn">Generate Class List</button>
+                                <button type="submit" class="btn btn-primary" id="generateClassListBtn" disabled>
+                                    Generate Class List
+                                </button>
                             </form>
                         </div>
                     </div>
@@ -1300,59 +1316,86 @@ $stmt->close();
         });
 
         // Handle Form Selection for class list
+        // ────────────────────────────────────────────────
+        // Class List modal – new logic (Form → Stream OR Custom Group)
+        // ────────────────────────────────────────────────
+
         $('#classListClassId').on('change', function() {
             const classId = $(this).val();
-            $('#classListStreamId').html('<option value="">Select Stream</option>').prop('disabled', true);
-            $('#classListSubjectId').html('<option value="">Select Subject</option>').prop('disabled', true);
-            if (classId) {
-                // Load streams
-                $.post('cbcanalysis/functions.php', {
-                    action: 'get_streams',
-                    class_id: classId
-                }, function(response) {
-                    console.log('Streams Response (Class List):', response);
-                    if (response.status === 'success' && response.streams && response.streams.length > 0) {
-                        response.streams.forEach(stream => {
-                            $('#classListStreamId').append(`<option value="${stream.stream_id}">${stream.stream_name}</option>`);
-                        });
-                        $('#classListStreamId').prop('disabled', false);
-                    } else {
-                        alert('No streams found for the selected form.');
-                    }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load streams:', textStatus, errorThrown);
-                    alert('Failed to load streams.');
-                });
 
-                // Load subjects
-                $.post('cbcanalysis/functions.php', {
-                    action: 'get_subjects_for_class',
-                    class_id: classId
-                }, function(response) {
-                    console.log('Subjects Response (Class List):', response);
-                    if (response.status === 'success' && response.subjects && response.subjects.length > 0) {
-                        response.subjects.forEach(subject => {
-                            $('#classListSubjectId').append(`<option value="${subject.subject_id}">${subject.name}</option>`);
-                        });
-                        $('#classListSubjectId').prop('disabled', false);
-                    } else {
-                        alert('No subjects found for the selected form.');
-                    }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load subjects:', textStatus, errorThrown);
-                    alert('Failed to load subjects.');
-                });
-            }
+            // Reset everything downstream
+            $('#classListStreamId')
+                .html('<option value="">Select Stream (optional)</option>')
+                .prop('disabled', true);
+            $('#classListGroupId')
+                .html('<option value="">Select Custom Group (optional)</option>')
+                .prop('disabled', true);
+            $('#generateClassListBtn').prop('disabled', true);
+
+            if (!classId) return;
+
+            // Load streams (same as before)
+            $.post('cbcanalysis/functions.php', {
+                action: 'get_streams',
+                class_id: classId
+            }, function(res) {
+                if (res.status === 'success' && res.streams?.length > 0) {
+                    res.streams.forEach(s => {
+                        $('#classListStreamId').append(
+                            `<option value="${s.stream_id}">${s.stream_name}</option>`
+                        );
+                    });
+                    $('#classListStreamId').prop('disabled', false);
+                }
+            }, 'json');
+
+            // NEW: Load custom groups for this class
+            $.post('cbcanalysis/functions.php', {
+                action: 'get_custom_groups_for_class', // ← you need to add this action
+                class_id: classId
+            }, function(res) {
+                if (res.status === 'success' && res.groups?.length > 0) {
+                    res.groups.forEach(g => {
+                        $('#classListGroupId').append(
+                            `<option value="${g.group_id}">${g.name}</option>`
+                        );
+                    });
+                    $('#classListGroupId').prop('disabled', false);
+                }
+            }, 'json');
         });
 
-        // Validate class list form before submission
+        // Enable Generate button only when Form + (Stream OR Group) is selected
+        function updateGenerateButton() {
+            const hasForm = $('#classListClassId').val() !== '';
+            const hasStream = $('#classListStreamId').val() !== '';
+            const hasGroup = $('#classListGroupId').val() !== '';
+
+            const valid = hasForm && (hasStream || hasGroup) && !(hasStream && hasGroup);
+
+            $('#generateClassListBtn').prop('disabled', !valid);
+
+            // Optional visual feedback
+            if (hasStream && hasGroup) {
+                $('#classListForm .alert').removeClass('alert-info').addClass('alert-warning')
+                    .text('Please select either Stream or Custom Group — not both.');
+            } else {
+                $('#classListForm .alert').removeClass('alert-warning').addClass('alert-info')
+                    .html('Select <strong>either</strong> a Stream <strong>or</strong> a Custom Group (not both).');
+            }
+        }
+
+        $('#classListStreamId, #classListGroupId').on('change', updateGenerateButton);
+
+        // Form validation (extra safety)
         $('#classListForm').on('submit', function(e) {
             const classId = $('#classListClassId').val();
             const streamId = $('#classListStreamId').val();
-            const subjectId = $('#classListSubjectId').val();
-            if (!classId || !streamId || !subjectId) {
+            const groupId = $('#classListGroupId').val();
+
+            if (!classId || (!streamId && !groupId) || (streamId && groupId)) {
                 e.preventDefault();
-                alert('Please select form, stream, and subject.');
+                alert('Please select a Form and exactly one of: Stream or Custom Group.');
             }
         });
 

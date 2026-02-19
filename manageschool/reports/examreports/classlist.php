@@ -9,15 +9,21 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['school_id']) || !isset($_S
 }
 
 $school_id = $_SESSION['school_id'];
-$class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+$class_id  = isset($_POST['class_id'])  ? (int)$_POST['class_id']  : 0;
 $stream_id = isset($_POST['stream_id']) ? (int)$_POST['stream_id'] : 0;
-$subject_id = isset($_POST['subject_id']) ? (int)$_POST['subject_id'] : 0;
+$subject_id = isset($_POST['subject_id']) && $_POST['subject_id'] !== ''
+  ? (int)$_POST['subject_id']
+  : 0;
 
-if (empty($class_id) || empty($stream_id) || empty($subject_id)) {
-  die("Required parameters are missing.");
-}
+// ────────────────────────────────────────────────
+// Prepare fallbacks
+// ────────────────────────────────────────────────
+$subject_name = '—';
+$teacher_name = '______ ___';
 
+// ────────────────────────────────────────────────
 // Fetch school details
+// ────────────────────────────────────────────────
 $stmt = $conn->prepare("SELECT name, logo, phone, email FROM schools WHERE school_id = ?");
 $stmt->bind_param("i", $school_id);
 $stmt->execute();
@@ -46,28 +52,48 @@ $stmt->execute();
 $stream = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Fetch subject details
-$stmt = $conn->prepare("SELECT name FROM subjects WHERE subject_id = ? AND school_id = ?");
-$stmt->bind_param("ii", $subject_id, $school_id);
-$stmt->execute();
-$subject = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+// ────────────────────────────────────────────────
+// Fetch subject (only if selected)
+// ────────────────────────────────────────────────
+$subject = null;
+if ($subject_id > 0) {
+  $stmt = $conn->prepare("SELECT name FROM subjects WHERE subject_id = ? AND school_id = ?");
+  $stmt->bind_param("ii", $subject_id, $school_id);
+  $stmt->execute();
+  $subject = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
 
-// Fetch teacher
-$stmt = $conn->prepare("
-    SELECT CONCAT(u.first_name, ' ', COALESCE(u.other_names, '')) AS teacher_name
-    FROM teacher_subjects ts
-    JOIN users u ON ts.user_id = u.user_id
-    WHERE ts.subject_id = ? AND ts.class_id = ? AND ts.school_id = ? 
-      AND u.status = 'active' AND u.deleted_at IS NULL
-    LIMIT 1
-");
-$stmt->bind_param("iii", $subject_id, $class_id, $school_id);
-$stmt->execute();
-$teacher = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+  if ($subject) {
+    $subject_name = $subject['name'];
+  }
+}
 
-// Fetch students
+// ────────────────────────────────────────────────
+// Fetch teacher – only if subject is selected
+// ────────────────────────────────────────────────
+if ($subject_id > 0) {
+  $stmt = $conn->prepare("
+        SELECT CONCAT(u.first_name, ' ', COALESCE(u.other_names, '')) AS teacher_name
+        FROM teacher_subjects ts
+        JOIN users u ON ts.user_id = u.user_id
+        WHERE ts.subject_id = ?
+          AND ts.class_id = ?
+          AND ts.school_id = ?
+          AND u.status = 'active'
+          AND u.deleted_at IS NULL
+        LIMIT 1
+    ");
+  $stmt->bind_param("iii", $subject_id, $class_id, $school_id);
+  $stmt->execute();
+  $teacher_result = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+
+  if ($teacher_result && !empty($teacher_result['teacher_name'])) {
+    $teacher_name = $teacher_result['teacher_name'];
+  }
+}
+
+// Fetch students (always – doesn't depend on subject)
 $stmt = $conn->prepare("
     SELECT admission_no, full_name, kcpe_score
     FROM students
@@ -79,11 +105,9 @@ $stmt->execute();
 $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 ?>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
 <style>
   .classlist_container {
     max-width: 950px;
@@ -232,7 +256,6 @@ $stmt->close();
     /* slightly adjusted for better balance */
   }
 </style>
-
 <!-- Sticky Header (hidden in print) -->
 <div class="no-print" style="
     display: flex;
@@ -256,7 +279,13 @@ $stmt->close();
     </span>
   </div>
   <div style="flex: 1; text-align: center; font-weight: bold; font-size: 16px;">
-    Class List: <?php echo htmlspecialchars(($class['form_name'] ?? '') . ' ' . ($stream['stream_name'] ?? '') . ' - ' . ($subject['name'] ?? 'Selected Subject')); ?>
+    Class List: <?php
+                echo htmlspecialchars(
+                  ($class['form_name'] ?? '') . ' ' .
+                    ($stream['stream_name'] ?? '') .
+                    ($subject_name !== '—' ? ' - ' . $subject_name : '')
+                );
+                ?>
   </div>
   <div style="display: flex; gap: 8px; align-items: center;">
     <button style="background-color: #ff6b6b; border: none; padding: 6px 12px; border-radius: 5px; color: #fff; cursor: pointer; font-size: 12px;"
@@ -276,7 +305,6 @@ $stmt->close();
     </button>
   </div>
 </div>
-
 <!-- Download Modal -->
 <div class="modal fade modal-loader" id="downloadModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -288,7 +316,6 @@ $stmt->close();
     </div>
   </div>
 </div>
-
 <div class="classlist_container">
   <div class="classlist_header">
     <img src="<?php echo htmlspecialchars($school_logo); ?>" alt="Logo" /><br />
@@ -299,17 +326,16 @@ $stmt->close();
       $current_year = date('Y');
       echo htmlspecialchars(
         ($class['form_name'] ?? '') . ' ' .
-          ($stream['stream_name'] ?? '') . ' - ' .
-          ($subject['name'] ?? 'Selected Subject') . ' ' . $current_year
+          ($stream['stream_name'] ?? '') .
+          ($subject_name !== '—' ? ' - ' . $subject_name : '') .
+          ' ' . $current_year
       );
       ?>
     </p>
   </div>
-
   <div class="classlist_label">
-    TEACHER: <?php echo htmlspecialchars($teacher['teacher_name'] ?? 'N/A'); ?>
+    TEACHER: <?php echo htmlspecialchars($teacher_name); ?>
   </div>
-
   <table class="table table-bordered table-sm text-center align-middle mb-2 classlist_table">
     <thead>
       <tr>
@@ -339,7 +365,6 @@ $stmt->close();
     </tbody>
   </table>
 </div>
-
 <script>
   function printReport() {
     window.print();
@@ -351,16 +376,14 @@ $stmt->close();
       alert('No reports available to download.');
       return;
     }
-
     const modal = new bootstrap.Modal(document.getElementById('downloadModal'), {
       backdrop: 'static',
       keyboard: false
     });
     modal.show();
-
     const opt = {
       margin: 12,
-      filename: 'Class_List_<?php echo htmlspecialchars(($class['form_name'] ?? '') . '_' . ($stream['stream_name'] ?? '') . '_' . ($subject['name'] ?? 'Subject') . '.pdf'); ?>',
+      filename: 'Class_List_<?php echo htmlspecialchars(($class['form_name'] ?? '') . '_' . ($stream['stream_name'] ?? '') . ($subject_name !== '—' ? '_' . $subject_name : '') . '.pdf'); ?>',
       image: {
         type: 'jpeg',
         quality: 0.98
@@ -379,14 +402,12 @@ $stmt->close();
         mode: ['avoid-all', 'css', 'legacy']
       } // ← improved page break handling
     };
-
     const tempContainer = document.createElement('div');
     containers.forEach(container => {
       const clone = container.cloneNode(true);
       clone.querySelectorAll('.no-print').forEach(el => el.remove());
       tempContainer.appendChild(clone);
     });
-
     html2pdf().set(opt).from(tempContainer).save().then(() => {
       tempContainer.remove();
       modal.hide();
@@ -397,5 +418,4 @@ $stmt->close();
     });
   }
 </script>
-
 <?php ob_end_flush(); ?>

@@ -799,6 +799,29 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             error_log("get_school_analysis_terms: Fetched " . count($terms) . " terms for class_id=$class_id, year=$year");
             echo json_encode(['status' => 'success', 'terms' => $terms]);
             break;
+        case 'get_custom_groups_for_class':
+            $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+            if (!$class_id) {
+                echo json_encode(['status' => 'error', 'message' => 'Class ID required']);
+                exit;
+            }
+
+            $stmt = $conn->prepare("
+        SELECT group_id, name
+        FROM custom_groups
+        WHERE school_id = ? AND class_id = ?
+        ORDER BY name
+    ");
+            $stmt->bind_param("ii", $school_id, $class_id);
+            $stmt->execute();
+            $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status' => 'success',
+                'groups' => $groups
+            ]);
+            break;
 
         case 'get_school_analysis_exams':
             $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
