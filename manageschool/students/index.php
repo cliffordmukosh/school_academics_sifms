@@ -1464,18 +1464,14 @@ $totalStudents = count($students);
             }
         });
 
-        // Search and Filter Table
-        // Search and Filter Table – FIXED: only sort when actually filtering/searching
+        // ==================== FIXED SEARCH & FILTER ====================
         $('#searchInput, #classFilter, #streamFilter').on('input change', function() {
             const searchText = $('#searchInput').val().toLowerCase().trim();
             const classFilter = $('#classFilter').val();
             const streamFilter = $('#streamFilter').val();
 
-            const hasActiveFilter = searchText !== '' || classFilter !== '' || streamFilter !== '';
-
             const $rows = $('#studentTable tbody tr');
 
-            // 1. Show/hide rows based on filters
             $rows.each(function() {
                 const $row = $(this);
                 const name = $row.find('td:eq(1)').text().toLowerCase();
@@ -1483,29 +1479,107 @@ $totalStudents = count($students);
                 const className = $row.find('td:eq(3)').text();
                 const streamName = $row.find('td:eq(4)').text();
 
-                const matchesSearch = !searchText || name.includes(searchText) || admissionNo.includes(searchText);
+                const matchesSearch = !searchText ||
+                    name.includes(searchText) ||
+                    admissionNo.includes(searchText);
                 const matchesClass = !classFilter || className === classFilter;
                 const matchesStream = !streamFilter || streamName === streamFilter;
 
                 $row.toggle(matchesSearch && matchesClass && matchesStream);
             });
 
-            // 2. ONLY re-sort if user is actually filtering or searching
-            if (hasActiveFilter) {
-                const visibleRows = $rows.filter(':visible').get();
-                visibleRows.sort((a, b) => {
-                    const aAdm = $(a).find('td:eq(2)').text().trim();
-                    const bAdm = $(b).find('td:eq(2)').text().trim();
-                    return aAdm.localeCompare(bAdm, undefined, {
-                        numeric: true,
-                        sensitivity: 'base'
-                    });
+            // Re-sort visible rows by admission number (smallest → largest)
+            const visibleRows = $rows.filter(':visible').get();
+            visibleRows.sort((a, b) => {
+                const aAdm = $(a).find('td:eq(2)').text().trim();
+                const bAdm = $(b).find('td:eq(2)').text().trim();
+                return aAdm.localeCompare(bAdm, undefined, {
+                    numeric: true
                 });
-                $('#studentTable tbody').empty().append(visibleRows);
-            }
-            // If no filter → keep the original PHP-sorted order (100 → 300 → 100000)
+            });
+
+            // Re-append in sorted order WITHOUT destroying anything
+            const $tbody = $('#studentTable tbody');
+            $tbody.empty().append(visibleRows);
         });
 
+        // ==================== DELEGATED BUTTON HANDLERS (fixes Edit modal) ====================
+        // These now work even after filtering/re-sorting
+
+        $(document).on('click', '.edit-student', function() {
+            const studentId = $(this).data('student-id');
+            console.log('✏️ Editing Student (delegated):', studentId);
+
+            ajaxDebug({
+                url: 'students/functions.php',
+                method: 'POST',
+                data: {
+                    action: 'get_student',
+                    student_id: studentId
+                },
+                onSuccess: function(json) {
+                    if (json.status === 'success') {
+                        const student = json.student;
+                        $('#editStudentForm [name="student_id"]').val(student.student_id);
+                        $('#editStudentForm [name="admission_no"]').val(student.admission_no);
+                        $('#editStudentForm [name="full_name"]').val(student.full_name);
+                        $('#editStudentForm [name="gender"]').val(student.gender);
+                        $('#editStudentForm [name="dob"]').val(student.dob);
+                        $('#editStudentForm [name="class_id"]').val(student.class_id).trigger('change');
+                        $('#editStudentForm [name="stream_id"]').val(student.stream_id);
+                        $('#editStudentForm [name="primary_phone"]').val(student.primary_phone);
+                        $('#editStudentForm [name="secondary_phone"]').val(student.secondary_phone);
+                        $('#editStudentForm [name="date_of_admission"]').val(student.date_of_admission);
+                        $('#editStudentForm [name="entry_position"]').val(student.entry_position);
+                        $('#editStudentForm [name="kcpe_index"]').val(student.kcpe_index);
+                        $('#editStudentForm [name="kcpe_score"]').val(student.kcpe_score);
+                        $('#editStudentForm [name="kcpe_grade"]').val(student.kcpe_grade);
+                        $('#editStudentForm [name="kcpe_year"]').val(student.kcpe_year);
+                        $('#editStudentForm [name="index_number"]').val(student.index_number);
+                        $('#editStudentForm [name="previous_school"]').val(student.previous_school);
+                        $('#editStudentForm [name="primary_school"]').val(student.primary_school);
+                        $('#editStudentForm [name="upi"]').val(student.upi);
+                        $('#editStudentForm [name="guardian_name"]').val(student.guardian_name);
+                        $('#editStudentForm [name="guardian_relation"]').val(student.guardian_relation);
+                        $('#editStudentForm [name="primary_phone_2"]').val(student.primary_phone_2);
+                        $('#editStudentForm [name="secondary_phone_2"]').val(student.secondary_phone_2);
+                        $('#editStudentForm [name="birth_cert_number"]').val(student.birth_cert_number);
+                        $('#editStudentForm [name="nationality"]').val(student.nationality);
+                        $('#editStudentForm [name="place_of_birth"]').val(student.place_of_birth);
+                        $('#editStudentForm [name="nhif"]').val(student.nhif);
+                        $('#editStudentForm [name="general_comments"]').val(student.general_comments);
+
+                        $('#edit-educational-tab, #edit-guardian-tab, #edit-location-tab, #edit-additional-tab').removeClass('disabled');
+                        $('#editStudentModal').modal('show');
+                    } else {
+                        alert(json.message);
+                    }
+                }
+            });
+        });
+
+        // Also fix the other action buttons with delegation (good practice)
+        $(document).on('click', '.change-class, .change-stream', function() {
+            const studentId = $(this).data('student-id');
+            $('#studentClassSelect, #studentStreamSelect').val(studentId);
+        });
+
+        $(document).on('click', '.delete-student', function() {
+            if (!confirm('Delete this student?')) return;
+            const studentId = $(this).data('student-id');
+            ajaxDebug({
+                url: 'students/functions.php',
+                method: 'POST',
+                data: {
+                    action: 'delete_student',
+                    student_id: studentId
+                },
+                onSuccess: function(json) {
+                    alert(json.message);
+                    if (json.status === 'success') window.location.reload();
+                }
+            });
+        });
         // Existing handlers for Change Class, Change Stream, Add Stream, Delete Student
         $('#changeClassForm').on('submit', function(e) {
             e.preventDefault();
@@ -1556,24 +1630,7 @@ $totalStudents = count($students);
             });
         });
 
-        $('.delete-student').on('click', function() {
-            if (!confirm('Delete this student?')) return;
-            const studentId = $(this).data('student-id');
-            ajaxDebug({
-                url: 'students/functions.php',
-                method: 'POST',
-                data: {
-                    action: 'delete_student',
-                    student_id: studentId
-                },
-                onSuccess: function(json) {
-                    alert(json.message);
-                    if (json.status === 'success') {
-                        window.location.reload();
-                    }
-                }
-            });
-        });
+
     });
 
     $('#importExcelForm').on('submit', function(e) {
@@ -1759,42 +1816,49 @@ $totalStudents = count($students);
 
     function renderStudents(containerId, students, selectedIds = []) {
         const $container = $(`#${containerId}`).empty().data('students', students);
-        if (!students.length) {
-            $container.html('<p class="text-muted text-center py-3">No students available</p>');
-            return;
-        }
 
-        // ←←← SORT BY ADMISSION_NO ASC (smallest to largest) ←←←
+        // Sort once
         students.sort((a, b) => a.admission_no.localeCompare(b.admission_no, undefined, {
             numeric: true
         }));
 
-        function renderList(list) {
-            $container.empty();
-            list.forEach(stu => {
-                const checked = selectedIds.includes(stu.student_id) ? 'checked' : '';
-                $container.append(`
+        // Create or update checkboxes
+        students.forEach(stu => {
+            const id = `${containerId}_st_${stu.student_id}`;
+            let $item = $(`#${id}`).closest('.col');
+
+            const isChecked = selectedIds.includes(stu.student_id);
+
+            if ($item.length === 0) {
+                // Create new
+                $item = $(`
                 <div class="col">
                     <div class="form-check border rounded px-3 py-2">
-                        <input class="form-check-input" type="checkbox" name="student_ids[]" value="${stu.student_id}" id="${containerId}_st_${stu.student_id}" ${checked}>
-                        <label class="form-check-label" for="${containerId}_st_${stu.student_id}">
+                        <input class="form-check-input" type="checkbox" name="student_ids[]" 
+                               value="${stu.student_id}" id="${id}">
+                        <label class="form-check-label" for="${id}">
                             ${stu.full_name} <small class="text-muted">(${stu.admission_no})</small>
                         </label>
                     </div>
                 </div>
             `);
-            });
-        }
-        renderList(students);
+                $container.append($item);
+            }
 
+            // Always update checked state
+            $item.find('input[type="checkbox"]').prop('checked', isChecked);
+        });
+
+        // Hide items that don't match search (instead of removing them)
         const searchInput = containerId.includes('edit') ? '#studentSearchEdit' : '#studentSearchAdd';
+
         $(searchInput).off('input').on('input', function() {
             const term = $(this).val().toLowerCase().trim();
-            if (!term) return renderList(students);
-            const filtered = students.filter(s =>
-                s.full_name.toLowerCase().includes(term) || s.admission_no.toLowerCase().includes(term)
-            );
-            renderList(filtered);
+            $container.find('.col').each(function() {
+                const $this = $(this);
+                const text = $this.text().toLowerCase();
+                $this.toggle(!term || text.includes(term));
+            });
         });
     }
     // Manage modal – load groups table (students column removed)
@@ -1815,25 +1879,31 @@ $totalStudents = count($students);
                 json.groups.forEach((group, index) => {
                     $tbody.append(`
                     <tr>
-                        <td>${index + 1}</td>
-                        <td>${group.name}</td>
-                        <td>${group.form_name}</td>
-                        <td>${group.description || ''}</td>
-                        <td>${group.subjects.join(', ') || '-'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-info me-1 view-group-students" 
-                                    data-group-id="${group.group_id}" 
-                                    data-group-name="${group.name}">
-                                <i class="bi bi-eye"></i> View Students
-                            </button>
-                            <button class="btn btn-sm btn-warning me-1 edit-group" data-group='${JSON.stringify(group)}'>
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-group" data-group-id="${group.group_id}">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
+        <td>${index + 1}</td>
+        <td>${group.name}</td>
+        <td>${group.form_name}</td>
+        <td>${group.description || ''}</td>
+        <td>${group.subjects.join(', ') || '-'}</td>
+        <td>
+            <button class="btn btn-sm btn-info me-1 view-group-students"
+                    data-group-id="${group.group_id}"
+                    data-group-name="${group.name}">
+                <i class="bi bi-eye"></i> View Students
+            </button>
+            <!-- NEW EXPORT BUTTON (added here) -->
+            <button class="btn btn-sm btn-success me-1 export-group-students"
+                    data-group-id="${group.group_id}"
+                    data-group-name="${group.name}">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </button>
+            <button class="btn btn-sm btn-warning me-1 edit-group" data-group='${JSON.stringify(group)}'>
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-danger delete-group" data-group-id="${group.group_id}">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
                 `);
                 });
             }
@@ -1877,6 +1947,17 @@ $totalStudents = count($students);
         });
     });
 
+
+    $(document).on('click', '.export-group-students', function() {
+        const groupId = $(this).data('group-id');
+        const groupName = $(this).data('group-name') || 'custom_group';
+
+        // Make filename safe and pretty
+        const safeName = groupName.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+
+        // Trigger direct download (no page reload)
+        window.location.href = `students/functions.php?action=export_custom_group_students&group_id=${groupId}&filename=${encodeURIComponent(safeName)}`;
+    });
     // Add modal class change
     $('#addGroupClassSelect').on('change', function() {
         const cid = $(this).val();
@@ -1916,15 +1997,29 @@ $totalStudents = count($students);
     // Edit button
     $(document).on('click', '.edit-group', function() {
         const g = $(this).data('group');
+
+        // Safety: make sure we have arrays of numbers
+        const subjectIds = Array.isArray(g.subject_ids) ?
+            g.subject_ids.map(Number) : [];
+        const studentIds = Array.isArray(g.student_ids) ?
+            g.student_ids.map(Number) : [];
+
         $('#editCustomGroupForm [name="group_id"]').val(g.group_id);
-        $('#editCustomGroupForm [name="name"]').val(g.name);
+        $('#editCustomGroupForm [name="name"]').val(g.name || '');
         $('#editCustomGroupForm [name="description"]').val(g.description || '');
         $('#editGroupClassSelect').val(g.class_id);
 
-        fetchSubjectsByClass(g.class_id, subs => renderSubjects('editGroupSubjectsList', subs, g.subject_ids || []));
-        fetchStudentsByClass(g.class_id, studs => renderStudents('editGroupStudentsList', studs, g.student_ids || []));
-        $('#manageCustomGroupsModal').modal('hide');
+        // Load subjects + pre-check existing ones
+        fetchSubjectsByClass(g.class_id, subs => {
+            renderSubjects('editGroupSubjectsList', subs, subjectIds);
+        });
 
+        // Load students + pre-check existing ones
+        fetchStudentsByClass(g.class_id, studs => {
+            renderStudents('editGroupStudentsList', studs, studentIds);
+        });
+
+        $('#manageCustomGroupsModal').modal('hide');
         $('#editCustomGroupModal').modal('show');
     });
 

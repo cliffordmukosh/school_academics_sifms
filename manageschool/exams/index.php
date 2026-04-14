@@ -72,34 +72,74 @@ $terms = ['Term 1', 'Term 2', 'Term 3'];
 $statuses = ['draft', 'active', 'closed'];
 ?>
 <style>
+  /* ────────────────────────────────────────────────
+     BASE & RESET
+  ──────────────────────────────────────────────── */
+
+  @media (max-width: 576px) {
+    .container-fluid>.container {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      max-width: 100% !important;
+    }
+
+    .row.g-4>.col-md-3 {
+      flex: 0 0 50% !important;
+      max-width: 50% !important;
+      padding-left: 0.5rem !important;
+      padding-right: 0.5rem !important;
+    }
+
+    .content,
+    .container-fluid,
+    .container {
+      overflow-x: hidden !important;
+    }
+  }
+
+  .content {
+    min-height: 100vh;
+    background: #f8f9fa;
+  }
+
   .sticky-column {
     position: sticky;
     left: 0;
     background: white;
     z-index: 10;
-    box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
+    box-shadow: 3px 0 8px -4px rgba(0, 0, 0, 0.1);
   }
 
   .table-container {
-    max-width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
   }
 
   th,
   td {
-    min-width: 100px;
     text-align: center;
+    vertical-align: middle;
+    padding: 0.65rem !important;
+  }
+
+  /* Exam name wrapping */
+  #examsTableBody td:nth-child(2),
+  #examsTableBodyModal td:nth-child(2) {
+    white-space: normal;
+    max-width: 220px;
+    line-height: 1.4;
   }
 
   .filter-container {
     display: flex;
-    gap: 1rem;
     flex-wrap: wrap;
-    margin-bottom: 1rem;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
   }
 
   .editable-cell:hover {
-    background-color: #f0f0f0;
+    background: #f1f3f5;
     cursor: pointer;
   }
 
@@ -113,331 +153,532 @@ $statuses = ['draft', 'active', 'closed'];
 
   .editable-cell input:focus {
     outline: none;
-    border-bottom: 1px solid #007bff;
+    border-bottom: 2px solid #0d6efd;
+  }
+
+  /* ────────────────────────────────────────────────
+     MOBILE-FIRST (≤ 576px) — top-aligned modals + bigger text
+  ──────────────────────────────────────────────── */
+  @media (max-width: 576px) {
+
+    body,
+    .content {
+      font-size: 1rem !important;
+      /* bigger base font */
+      padding: 0.5rem !important;
+    }
+
+    .container,
+    .container-fluid {
+      padding: 0 0.75rem !important;
+    }
+
+    h3 {
+      font-size: 1.6rem !important;
+      margin-bottom: 1.25rem !important;
+    }
+
+    h5 {
+      font-size: 1.35rem !important;
+    }
+
+    /* Cards - 2 per row, bigger touch */
+    .row.g-4>.col-md-3 {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+
+    .card {
+      margin-bottom: 1.25rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .card-body {
+      padding: 1.5rem 1.25rem !important;
+    }
+
+    .card .display-5 {
+      font-size: 3.2rem !important;
+      margin-bottom: 1rem !important;
+    }
+
+    .btn.mt-auto {
+      min-height: 50px !important;
+      font-size: 1.05rem !important;
+      padding: 0.75rem 1.25rem !important;
+    }
+
+    /* Tables - readable on mobile */
+    .table {
+      font-size: 0.95rem !important;
+    }
+
+    .table th,
+    .table td {
+      padding: 0.65rem 0.75rem !important;
+      min-width: 90px;
+    }
+
+    .btn-sm {
+      padding: 0.45rem 0.85rem;
+      font-size: 0.9rem;
+      min-height: 42px;
+    }
+
+    /* ── MODALS: start from TOP on mobile, full-width, no centering vertically ── */
+    .modal {
+      padding-right: 0 !important;
+    }
+
+    .modal-dialog {
+      margin: 0.5rem auto 0.5rem !important;
+      /* top margin small, starts near top */
+      max-width: calc(100% - 1rem) !important;
+    }
+
+    .modal.fade .modal-dialog {
+      transform: translate(0, 0) !important;
+      /* no weird slide */
+    }
+
+    .modal-dialog.modal-sm,
+    .modal-dialog.modal-md,
+    .modal-dialog.modal-lg,
+    .modal-dialog.modal-xl {
+      max-width: 98% !important;
+      margin: 0.5rem auto 0.5rem !important;
+    }
+
+    .modal-content {
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      border: none;
+    }
+
+    .modal-body {
+      padding: 1.5rem 1.25rem !important;
+      max-height: 80vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-title {
+      font-size: 1.45rem !important;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem !important;
+    }
+
+    .form-label {
+      font-size: 1.05rem !important;
+      margin-bottom: 0.55rem;
+      font-weight: 500;
+    }
+
+    .form-control,
+    .form-select {
+      font-size: 1.05rem !important;
+      padding: 0.65rem 1rem !important;
+      height: auto;
+      border-radius: 10px;
+    }
+
+    .input-group .btn {
+      font-size: 1rem !important;
+      padding: 0.65rem 1rem !important;
+    }
+
+    .badge.fs-6 {
+      font-size: 0.9rem !important;
+      padding: 0.5em 1em;
+    }
+
+    /* Bigger touch targets everywhere */
+    .btn,
+    .form-check-label,
+    .nav-link,
+    .accordion-button {
+      min-height: 50px !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* No bad wrapping */
+    .table td:not(.sticky-column),
+    .table th:not(.sticky-column) {
+      max-width: 140px;
+    }
+  }
+
+  /* ────────────────────────────────────────────────
+     ALL SCREENS - polish
+  ──────────────────────────────────────────────── */
+  .badge {
+    font-weight: 500;
+    padding: 0.5em 1em;
+  }
+
+  .card.shadow-sm {
+    transition: all 0.2s ease;
+  }
+
+  .card.shadow-sm:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.3rem rgba(13, 110, 253, .2);
+  }
+
+  .modal[aria-hidden="true"] :focus {
+    outline: none !important;
   }
 </style>
 
 <div class="content">
-  <div class="container-fluid">
-    <div class="container py-4">
-      <!-- Title with dynamic count -->
-      <h3 class="mb-4 d-flex align-items-center">
-        <i class="bi bi-file-text me-2"></i> Exam Management
-        <span class="badge bg-primary ms-3 fs-6">Total Exams: <?php echo $totalExams; ?></span>
-      </h3>
+  <div class="container-fluid py-4">
+    <!-- Title with dynamic count -->
+    <h3 class="mb-4 d-flex align-items-center">
+      <i class="bi bi-file-text me-2"></i> Exam Management
+      <span class="badge bg-primary ms-3 fs-6">Total Exams: <?php echo $totalExams; ?></span>
+    </h3>
 
-      <!-- Exam Management Menu -->
-      <div class="row g-4 mb-4">
-        <!-- Create Exam -->
-        <div class="col-md-3">
-          <div class="card shadow-sm border-0 h-100 text-center">
-            <div class="card-body d-flex flex-column justify-content-center">
-              <i class="bi bi-plus-square display-5 text-primary"></i>
-              <h5 class="mt-3">Create Exam</h5>
-              <p class="text-muted">Create a new exam for a class and term.</p>
-              <button class="btn btn-primary mt-auto" data-bs-toggle="modal" data-bs-target="#createExamModal">
-                <i class="bi bi-plus-circle me-2"></i> Create Exam
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Upload Results -->
-        <div class="col-md-3">
-          <div class="card shadow-sm border-0 h-100 text-center">
-            <div class="card-body d-flex flex-column justify-content-center">
-              <i class="bi bi-upload display-5 text-info"></i>
-              <h5 class="mt-3">Upload Results</h5>
-              <p class="text-muted">Enter or upload exam results per paper.</p>
-              <button class="btn btn-info text-white mt-auto" data-bs-toggle="modal" data-bs-target="#uploadResultsModal">
-                <i class="bi bi-upload me-2"></i> Upload and Edit Results
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Manage Exams -->
-        <div class="col-md-3">
-          <div class="card shadow-sm border-0 h-100 text-center">
-            <div class="card-body d-flex flex-column justify-content-center">
-              <i class="bi bi-gear display-5 text-warning"></i>
-              <h5 class="mt-3">Manage Exams</h5>
-              <p class="text-muted">View, edit, or delete exams.</p>
-              <button class="btn btn-warning mt-auto" data-bs-toggle="modal" data-bs-target="#manageExamsModal">
-                <i class="bi bi-gear me-2"></i> Manage Exams
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Manage Grading Systems -->
-        <div class="col-md-3">
-          <div class="card shadow-sm border-0 h-100 text-center">
-            <div class="card-body d-flex flex-column justify-content-center">
-              <i class="bi bi-table display-5 text-secondary"></i>
-              <h5 class="mt-3">Manage Grading</h5>
-              <p class="text-muted">View default or create new grading systems.</p>
-              <button class="btn btn-secondary mt-auto" data-bs-toggle="modal" data-bs-target="#manageGradingModal">
-                <i class="bi bi-table me-2"></i> Manage Grading
-              </button>
-            </div>
+    <!-- Exam Management Menu -->
+    <div class="row g-4 mb-4">
+      <!-- Create Exam -->
+      <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100 text-center">
+          <div class="card-body d-flex flex-column justify-content-center">
+            <i class="bi bi-plus-square display-5 text-primary"></i>
+            <h5 class="mt-3">Create Exam</h5>
+            <p class="text-muted">Create a new exam for a class and term.</p>
+            <button class="btn btn-primary mt-auto" data-bs-toggle="modal" data-bs-target="#createExamModal">
+              <i class="bi bi-plus-circle me-2"></i> Create Exam
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- Exam List -->
-      <div class="card shadow-sm border-0">
-        <div class="card-body">
-          <h5 class="mb-3 d-flex align-items-center">
-            <i class="bi bi-list-ul me-2"></i> Exam List
-          </h5>
-          <table class="table table-striped table-hover">
-            <thead class="table-dark">
-              <tr>
-                <th>#</th>
-                <th>Exam Name</th>
-                <th>Class</th>
-                <th>Term</th>
-                <th>Status</th>
-                <th>Grading System</th>
-                <th>Actions</th>
+      <!-- Upload Results -->
+      <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100 text-center">
+          <div class="card-body d-flex flex-column justify-content-center">
+            <i class="bi bi-upload display-5 text-info"></i>
+            <h5 class="mt-3">Upload Results</h5>
+            <p class="text-muted">Enter or upload exam results per paper.</p>
+            <button class="btn btn-info text-white mt-auto" data-bs-toggle="modal" data-bs-target="#uploadResultsModal">
+              <i class="bi bi-upload me-2"></i> Upload and Edit Results
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manage Exams -->
+      <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100 text-center">
+          <div class="card-body d-flex flex-column justify-content-center">
+            <i class="bi bi-gear display-5 text-warning"></i>
+            <h5 class="mt-3">Manage Exams</h5>
+            <p class="text-muted">View, edit, or delete exams.</p>
+            <button class="btn btn-warning mt-auto" data-bs-toggle="modal" data-bs-target="#manageExamsModal">
+              <i class="bi bi-gear me-2"></i> Manage Exams
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manage Grading Systems -->
+      <div class="col-md-3">
+        <div class="card shadow-sm border-0 h-100 text-center">
+          <div class="card-body d-flex flex-column justify-content-center">
+            <i class="bi bi-table display-5 text-secondary"></i>
+            <h5 class="mt-3">Manage Grading</h5>
+            <p class="text-muted">View default or create new grading systems.</p>
+            <button class="btn btn-secondary mt-auto" data-bs-toggle="modal" data-bs-target="#manageGradingModal">
+              <i class="bi bi-table me-2"></i> Manage Grading
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exam List -->
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h5 class="mb-3 d-flex align-items-center">
+          <i class="bi bi-list-ul me-2"></i> Exam List
+        </h5>
+        <table class="table table-striped table-hover">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Exam Name</th>
+              <th>Class</th>
+              <th>Term</th>
+              <th>Status</th>
+              <th>Grading System</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="examsTableBody">
+            <?php foreach ($exams as $index => $exam): ?>
+              <tr data-exam-id="<?php echo $exam['exam_id']; ?>">
+                <td><?php echo $index + 1; ?></td>
+                <td><?php echo htmlspecialchars($exam['exam_name']); ?></td>
+                <td><?php echo htmlspecialchars($exam['form_name']); ?></td>
+                <td><?php echo htmlspecialchars($exam['term']); ?></td>
+                <td><?php echo htmlspecialchars(ucfirst($exam['status'])); ?></td>
+                <td><?php echo htmlspecialchars($exam['grading_system_name']); ?></td>
+                <td>
+                  <button class="btn btn-sm btn-primary view-subjects" data-exam-id="<?php echo $exam['exam_id']; ?>">
+                    <i class="bi bi-eye"></i> View Subjects
+                  </button>
+                  <button class="btn btn-sm btn-primary edit-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
+                    <i class="bi bi-pencil"></i> Edit
+                  </button>
+                  <button class="btn btn-sm btn-danger delete-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
+                    <i class="bi bi-trash"></i> Delete
+                  </button>
+                  <button class="btn btn-sm btn-info publish-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
+                    <i class="bi bi-check-circle"></i> Publish
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody id="examsTableBody">
-              <?php foreach ($exams as $index => $exam): ?>
-                <tr data-exam-id="<?php echo $exam['exam_id']; ?>">
-                  <td><?php echo $index + 1; ?></td>
-                  <td><?php echo htmlspecialchars($exam['exam_name']); ?></td>
-                  <td><?php echo htmlspecialchars($exam['form_name']); ?></td>
-                  <td><?php echo htmlspecialchars($exam['term']); ?></td>
-                  <td><?php echo htmlspecialchars(ucfirst($exam['status'])); ?></td>
-                  <td><?php echo htmlspecialchars($exam['grading_system_name']); ?></td>
-                  <td>
-                    <button class="btn btn-sm btn-primary view-subjects" data-exam-id="<?php echo $exam['exam_id']; ?>">
-                      <i class="bi bi-eye"></i> View Subjects
-                    </button>
-                    <button class="btn btn-sm btn-primary edit-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
-                      <i class="bi bi-pencil"></i> Edit
-                    </button>
-                    <button class="btn btn-sm btn-danger delete-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
-                      <i class="bi bi-trash"></i> Delete
-                    </button>
-                    <button class="btn btn-sm btn-info publish-exam" data-exam-id="<?php echo $exam['exam_id']; ?>">
-                      <i class="bi bi-check-circle"></i> Publish
-                    </button>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
       </div>
+    </div>
 
-      <!-- Create Exam Modal -->
-      <div class="modal fade" id="createExamModal" tabindex="-1">
-        <div class="modal-dialog modal-md">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="bi bi-plus-square me-2"></i> Create Exam</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <form id="createExamForm">
-                <div class="mb-3">
-                  <label class="form-label">Exam Name</label>
-                  <input type="text" class="form-control" name="exam_name" placeholder="Enter exam name" required>
+    <!-- Create Exam Modal -->
+    <div class="modal fade" id="createExamModal" tabindex="-1">
+      <div class="modal-dialog modal-md">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-plus-square me-2"></i> Create Exam</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="createExamForm">
+              <div class="mb-3">
+                <label class="form-label">Exam Name</label>
+                <input type="text" class="form-control" name="exam_name" placeholder="Enter exam name" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Classes</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="examClassDisplay" readonly placeholder="Select classes">
+                  <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectClassesModal">Select Classes</button>
                 </div>
-                <div class="mb-3">
-                  <label class="form-label">Classes</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" id="examClassDisplay" readonly placeholder="Select classes">
-                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectClassesModal">Select Classes</button>
-                  </div>
-                  <input type="hidden" name="class_ids" id="examClassIds">
-                  <small class="form-text text-muted">Click the button to select multiple classes.</small>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Term</label>
-                  <select class="form-select" name="term" required>
-                    <option value="">Select Term</option>
-                    <?php foreach ($terms as $term): ?>
-                      <option value="<?php echo $term; ?>"><?php echo $term; ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Grading System</label>
-                  <select class="form-select" name="grading_system_id" required>
-                    <option value="">Select Grading System</option>
-                    <?php foreach ($grading_systems as $gs): ?>
-                      <option value="<?php echo $gs['grading_system_id']; ?>">
-                        <?php echo htmlspecialchars($gs['name'] . ($gs['is_default'] ? ' (Default)' : '')); ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Create Exam</button>
-              </form>
-            </div>
+                <input type="hidden" name="class_ids" id="examClassIds">
+                <small class="form-text text-muted">Click the button to select multiple classes.</small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Term</label>
+                <select class="form-select" name="term" required>
+                  <option value="">Select Term</option>
+                  <?php foreach ($terms as $term): ?>
+                    <option value="<?php echo $term; ?>"><?php echo $term; ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Grading System</label>
+                <select class="form-select" name="grading_system_id" required>
+                  <option value="">Select Grading System</option>
+                  <?php foreach ($grading_systems as $gs): ?>
+                    <option value="<?php echo $gs['grading_system_id']; ?>">
+                      <?php echo htmlspecialchars($gs['name'] . ($gs['is_default'] ? ' (Default)' : '')); ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">Create Exam</button>
+            </form>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Upload Results Modal -->
-      <div class="modal fade" id="uploadResultsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="bi bi-upload me-2"></i> Enter Exam Results</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <ul class="nav nav-tabs mb-3" id="uploadTabs" role="tablist">
-                <li class="nav-item">
-                  <a class="nav-link active" id="manual-tab" data-bs-toggle="tab" href="#manual" role="tab">Manual Entry</a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" id="excel-tab" data-bs-toggle="tab" href="#excel" role="tab">Excel Upload</a>
-                </li>
-              </ul>
-              <div class="tab-content">
-                <!-- Manual Entry Tab -->
-                <div class="tab-pane fade show active" id="manual" role="tabpanel">
-                  <form id="manualResultsForm">
-                    <input type="hidden" name="action" value="upload_results_manually">
-                    <div class="mb-3">
-                      <label class="form-label">Exam</label>
-                      <select class="form-select" name="exam_id" id="manualExamId" required>
-                        <option value="">Select Exam</option>
-                        <?php foreach ($exams as $exam): ?>
-                          <option value="<?php echo $exam['exam_id']; ?>">
-                            <?php echo htmlspecialchars($exam['exam_name'] . ' (' . $exam['form_name'] . ', ' . $exam['term'] . ', ' . ucfirst($exam['status']) . ')'); ?>
-                          </option>
-                        <?php endforeach; ?>
-                      </select>
+    <!-- Upload Results Modal -->
+    <div class="modal fade" id="uploadResultsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-upload me-2"></i> Enter Exam Results</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-tabs mb-3" id="uploadTabs" role="tablist">
+              <li class="nav-item">
+                <a class="nav-link active" id="manual-tab" data-bs-toggle="tab" href="#manual" role="tab">Manual Entry</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" id="excel-tab" data-bs-toggle="tab" href="#excel" role="tab">Excel Upload</a>
+              </li>
+            </ul>
+            <div class="tab-content">
+              <!-- Manual Entry Tab -->
+              <div class="tab-pane fade show active" id="manual" role="tabpanel">
+                <form id="manualResultsForm">
+                  <input type="hidden" name="action" value="upload_results_manually">
+                  <div class="mb-3">
+                    <label class="form-label">Exam</label>
+                    <select class="form-select" name="exam_id" id="manualExamId" required>
+                      <option value="">Select Exam</option>
+                      <?php foreach ($exams as $exam): ?>
+                        <option value="<?php echo $exam['exam_id']; ?>">
+                          <?php echo htmlspecialchars($exam['exam_name'] . ' (' . $exam['form_name'] . ', ' . $exam['term'] . ', ' . ucfirst($exam['status']) . ')'); ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="manualSubjectDiv" style="display: none;">
+                    <label class="form-label">Subjects</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="manualSubjectDisplay" readonly placeholder="Select subjects">
+                      <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectSubjectsModal">Select Subjects</button>
                     </div>
-                    <div class="mb-3" id="manualSubjectDiv" style="display: none;">
-                      <label class="form-label">Subjects</label>
-                      <div class="input-group">
-                        <input type="text" class="form-control" id="manualSubjectDisplay" readonly placeholder="Select subjects">
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectSubjectsModal">Select Subjects</button>
-                      </div>
-                      <input type="hidden" name="subject_ids" id="manualSubjectIds">
-                      <small class="form-text text-muted">Click the button to select multiple subjects.</small>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label">Scope</label>
-                      <select class="form-select" name="scope" id="manualScope" required>
-                        <option value="">Select Scope</option>
-                        <option value="class">Entire Class</option>
-                        <option value="stream">Stream</option>
-                        <option value="student">Single Student</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="manualClassDiv" style="display: none;">
-                      <label class="form-label">Class</label>
-                      <select class="form-select" name="class_id" id="manualClassId" disabled>
-                        <option value="">Select Class</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="manualStreamDiv" style="display: none;">
-                      <label class="form-label">Stream</label>
-                      <select class="form-select" name="stream_id" id="manualStreamId">
-                        <option value="">Select Stream</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="manualStudentDiv" style="display: none;">
-                      <label class="form-label">Student</label>
-                      <select class="form-select" name="student_id" id="manualStudentId">
-                        <option value="">Select Student</option>
-                      </select>
-                    </div>
-                    <div id="manualResultsEntry" class="mb-3" style="display: none;">
-                      <!-- Dynamic result entry table will be populated here -->
-                    </div>
-                    <button type="submit" class="btn btn-primary">Submit Results</button>
-                  </form>
-                </div>
+                    <input type="hidden" name="subject_ids" id="manualSubjectIds">
+                    <small class="form-text text-muted">Click the button to select multiple subjects.</small>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Scope</label>
+                    <select class="form-select" name="scope" id="manualScope" required>
+                      <option value="">Select Scope</option>
+                      <option value="class">Entire Class</option>
+                      <option value="stream">Stream</option>
+                      <option value="custom_group">Custom Group</option>
+                      <option value="student">Single Student</option>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="manualGroupDiv" style="display: none;">
+                    <label class="form-label">Custom Group</label>
+                    <select class="form-select" name="group_id" id="manualGroupSelect">
+                      <option value="">Select Group</option>
+                      <!-- populated dynamically -->
+                    </select>
+                  </div>
 
-
-                <!-- Excel Upload Tab -->
-                <div class="tab-pane fade" id="excel" role="tabpanel">
-                  <form id="excelResultsForm" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="upload_results_excel">
-                    <div class="mb-3">
-                      <label class="form-label">Exam</label>
-                      <select class="form-select" name="exam_id" id="excelExamId" required>
-                        <option value="">Select Exam</option>
-                        <?php foreach ($exams as $exam): ?>
-                          <option value="<?php echo $exam['exam_id']; ?>">
-                            <?php echo htmlspecialchars($exam['exam_name'] . ' (' . $exam['form_name'] . ', ' . $exam['term'] . ', ' . ucfirst($exam['status']) . ')'); ?>
-                          </option>
-                        <?php endforeach; ?>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="excelSubjectDiv" style="display: none;">
-                      <label class="form-label">Subjects</label>
-                      <div class="input-group">
-                        <input type="text" class="form-control" id="excelSubjectDisplay" readonly placeholder="Select subjects">
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectSubjectsModal">Select Subjects</button>
-                      </div>
-                      <input type="hidden" name="subject_ids" id="excelSubjectIds">
-                      <small class="form-text text-muted">Click the button to select multiple subjects.</small>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label">Scope</label>
-                      <select class="form-select" name="scope" id="excelScope" required>
-                        <option value="">Select Scope</option>
-                        <option value="class">Entire Class</option>
-                        <option value="stream">Specific Stream</option>
-                        <option value="student">Single Student</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="excelClassDiv" style="display: none;">
-                      <label class="form-label">Class</label>
-                      <select class="form-select" name="class_id" id="excelClassId" disabled>
-                        <option value="">Select Class</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="excelStreamDiv" style="display: none;">
-                      <label class="form-label">Stream</label>
-                      <select class="form-select" name="stream_id" id="excelStreamId">
-                        <option value="">Select Stream</option>
-                      </select>
-                    </div>
-                    <div class="mb-3" id="excelStudentDiv" style="display: none;">
-                      <label class="form-label">Student</label>
-                      <select class="form-select" name="student_id" id="excelStudentId">
-                        <option value="">Select Student</option>
-                      </select>
-                      <div class="mt-2">
-                        <label class="form-label">Or Enter Admission Number</label>
-                        <input type="text" class="form-control" name="admission_no" id="excelAdmissionNo" placeholder="Enter admission number">
-                      </div>
-                    </div>
-                    <div class="mb-3">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="includeStudents" name="include_students">
-                        <label class="form-check-label" for="includeStudents">Include student list in Excel template</label>
-                      </div>
-                    </div>
-                    <div class="mb-3" id="excelSubjectsInfo" style="display: none;">
-                      <label class="form-label">Papers for Selected Subject</label>
-                      <p id="examSubjectsList" class="form-text"></p>
-                      <p class="form-text"><strong>Excel File Header Format:</strong> <span id="excelHeaderFormat"></span></p>
-                      <a href="#" id="downloadExcelTemplate" class="btn btn-sm btn-outline-success mt-2" style="display: none;">
-                        <i class="bi bi-download me-2"></i> Download Excel Template
-                      </a>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label">Upload Excel File</label>
-                      <input type="file" class="form-control" name="excel_file" accept=".xlsx, .xls" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Upload Excel</button>
-                  </form>
-                </div>
-
+                  <div class="mb-3" id="manualClassDiv" style="display: none;">
+                    <label class="form-label">Class</label>
+                    <select class="form-select" name="class_id" id="manualClassId" disabled>
+                      <option value="">Select Class</option>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="manualStreamDiv" style="display: none;">
+                    <label class="form-label">Stream</label>
+                    <select class="form-select" name="stream_id" id="manualStreamId">
+                      <option value="">Select Stream</option>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="manualStudentDiv" style="display: none;">
+                    <label class="form-label">Student</label>
+                    <select class="form-select" name="student_id" id="manualStudentId">
+                      <option value="">Select Student</option>
+                    </select>
+                  </div>
+                  <div id="manualResultsEntry" class="mb-3" style="display: none;">
+                    <!-- Dynamic result entry table will be populated here -->
+                  </div>
+                  <button type="submit" class="btn btn-primary">Submit Results</button>
+                </form>
               </div>
+
+
+              <!-- Excel Upload Tab -->
+              <div class="tab-pane fade" id="excel" role="tabpanel">
+                <form id="excelResultsForm" enctype="multipart/form-data">
+                  <input type="hidden" name="action" value="upload_results_excel">
+                  <div class="mb-3">
+                    <label class="form-label">Exam</label>
+                    <select class="form-select" name="exam_id" id="excelExamId" required>
+                      <option value="">Select Exam</option>
+                      <?php foreach ($exams as $exam): ?>
+                        <option value="<?php echo $exam['exam_id']; ?>">
+                          <?php echo htmlspecialchars($exam['exam_name'] . ' (' . $exam['form_name'] . ', ' . $exam['term'] . ', ' . ucfirst($exam['status']) . ')'); ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="excelSubjectDiv" style="display: none;">
+                    <label class="form-label">Subjects</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="excelSubjectDisplay" readonly placeholder="Select subjects">
+                      <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#selectSubjectsModal">Select Subjects</button>
+                    </div>
+                    <input type="hidden" name="subject_ids" id="excelSubjectIds">
+                    <small class="form-text text-muted">Click the button to select multiple subjects.</small>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Scope</label>
+                    <select class="form-select" name="scope" id="excelScope" required>
+                      <option value="">Select Scope</option>
+                      <option value="class">Entire Class</option>
+                      <option value="stream">Specific Stream</option>
+                      <option value="custom_group">Custom Group</option>
+                      <option value="student">Single Student</option>
+                    </select>
+                  </div>
+
+                  <!-- Add this inside #excelResultsForm (excel tab) -->
+                  <div class="mb-3" id="excelGroupDiv" style="display: none;">
+                    <label class="form-label">Custom Group</label>
+                    <select class="form-select" name="group_id" id="excelGroupSelect">
+                      <option value="">Select Group</option>
+                      <!-- populated dynamically -->
+                    </select>
+                  </div>
+                  <div class="mb-3" id="excelClassDiv" style="display: none;">
+                    <label class="form-label">Class</label>
+                    <select class="form-select" name="class_id" id="excelClassId" disabled>
+                      <option value="">Select Class</option>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="excelStreamDiv" style="display: none;">
+                    <label class="form-label">Stream</label>
+                    <select class="form-select" name="stream_id" id="excelStreamId">
+                      <option value="">Select Stream</option>
+                    </select>
+                  </div>
+                  <div class="mb-3" id="excelStudentDiv" style="display: none;">
+                    <label class="form-label">Student</label>
+                    <select class="form-select" name="student_id" id="excelStudentId">
+                      <option value="">Select Student</option>
+                    </select>
+                    <div class="mt-2">
+                      <label class="form-label">Or Enter Admission Number</label>
+                      <input type="text" class="form-control" name="admission_no" id="excelAdmissionNo" placeholder="Enter admission number">
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="includeStudents" name="include_students">
+                      <label class="form-check-label" for="includeStudents">Include student list in Excel template</label>
+                    </div>
+                  </div>
+                  <div class="mb-3" id="excelSubjectsInfo" style="display: none;">
+                    <label class="form-label">Papers for Selected Subject</label>
+                    <p id="examSubjectsList" class="form-text"></p>
+                    <p class="form-text"><strong>Excel File Header Format:</strong> <span id="excelHeaderFormat"></span></p>
+                    <a href="#" id="downloadExcelTemplate" class="btn btn-sm btn-outline-success mt-2" style="display: none;">
+                      <i class="bi bi-download me-2"></i> Download Excel Template
+                    </a>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Upload Excel File</label>
+                    <input type="file" class="form-control" name="excel_file" accept=".xlsx, .xls" required>
+                  </div>
+                  <button type="submit" class="btn btn-primary">Upload Excel</button>
+                </form>
+              </div>
+
             </div>
           </div>
         </div>
@@ -485,7 +726,6 @@ $statuses = ['draft', 'active', 'closed'];
         </div>
       </div>
     </div>
-
 
     <!-- Manage Exams Modal -->
     <div class="modal fade" id="manageExamsModal" tabindex="-1">
@@ -537,8 +777,6 @@ $statuses = ['draft', 'active', 'closed'];
       </div>
     </div>
 
-
-    <!-- Select Classes Modal -->
     <!-- Select Classes Modal -->
     <div class="modal fade" id="selectClassesModal" tabindex="-1">
       <div class="modal-dialog modal-md">
@@ -570,8 +808,6 @@ $statuses = ['draft', 'active', 'closed'];
         </div>
       </div>
     </div>
-
-
 
     <!-- Manage Grading Systems Modal -->
     <div class="modal fade" id="manageGradingModal" tabindex="-1">
@@ -730,27 +966,25 @@ $statuses = ['draft', 'active', 'closed'];
     <div class="modal fade" id="viewSubjectsModal" tabindex="-1">
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header d-flex justify-content-between align-items-center">
             <h5 class="modal-title"><i class="bi bi-table me-2"></i> Exam Results</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div>
+              <button type="button" class="btn btn-success btn-sm me-2" id="exportRawResultsBtn">
+                <i class="bi bi-file-earmark-arrow-down"></i> Export Raw Results
+              </button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
           </div>
+
           <div class="modal-body">
             <div class="filter-container mb-3 d-flex gap-3 flex-wrap">
-              <!-- Stream Filter -->
               <select id="streamSelect" class="form-select w-auto">
                 <option value="">All Streams</option>
-                <!-- Populated dynamically -->
               </select>
-
-              <!-- Subject Filter -->
               <select id="subjectSelect" class="form-select w-auto">
                 <option value="">All Subjects</option>
-                <!-- Populated dynamically -->
               </select>
-
-              <!-- Admission No Filter -->
-              <input id="admissionNoFilter" type="text" class="form-control w-auto"
-                placeholder="Filter by Admission No">
+              <input id="admissionNoFilter" type="text" class="form-control w-auto" placeholder="Filter by Admission No">
             </div>
 
             <div class="table-container">
@@ -759,19 +993,65 @@ $statuses = ['draft', 'active', 'closed'];
                   <tr id="resultsTableHeader">
                     <th class="sticky-column">Admission No</th>
                     <th class="sticky-column">Student Name</th>
-                    <!-- Dynamic subject/paper columns added here -->
                   </tr>
                 </thead>
                 <tbody id="resultsTableBody"></tbody>
               </table>
             </div>
           </div>
+
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- ── New Modal: Choose Export Scope ─────────────────────────────────────── -->
+    <div class="modal fade" id="exportRawModal" tabindex="-1" aria-labelledby="exportRawModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exportRawModalLabel">
+              <i class="bi bi-file-earmark-pdf me-2"></i> Export Raw Results (PDF)
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-4">What would you like to export?</p>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Scope</label>
+              <select class="form-select" id="exportScope" required>
+                <option value="">Select export scope...</option>
+                <option value="current_view">Current view (filtered stream + subjects)</option>
+                <option value="stream">Whole stream (ignores subject filter)</option>
+                <option value="custom_group">Custom group</option>
+              </select>
+            </div>
+
+            <!-- Custom group selector (shown only when needed) -->
+            <div id="customGroupContainer" class="mb-3" style="display:none;">
+              <label class="form-label fw-bold">Select Custom Group</label>
+              <select class="form-select" id="exportCustomGroup" required>
+                <option value="">— choose group —</option>
+              </select>
+            </div>
+
+            <div class="alert alert-info small mt-3" id="scopeHelpText">
+              Select an option above to continue.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="startPdfExport" disabled>
+              <i class="bi bi-download"></i> Download PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
     <!-- Publish Confirmation Modal -->
     <div class="modal fade" id="publishConfirmModal" tabindex="-1">
@@ -811,6 +1091,7 @@ $statuses = ['draft', 'active', 'closed'];
       </div>
     </div>
   </div>
+</div>
 </div>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
@@ -1062,7 +1343,46 @@ $statuses = ['draft', 'active', 'closed'];
       });
     });
 
+    function updateDownloadLink() {
+      const examId = $('#excelExamId').val()?.trim();
+      const scope = $('#excelScope').val();
+      const classId = $('#excelClassId').val();
 
+      // Minimal check — only need these three
+      if (!examId || !scope || !classId) {
+        $('#downloadExcelTemplate').hide();
+        $('#excelSubjectsInfo').hide();
+        return;
+      }
+
+      let url = `exams/functions.php?action=generate_excel_template` +
+        `&exam_id=${encodeURIComponent(examId)}` +
+        `&scope=${encodeURIComponent(scope)}` +
+        `&class_id=${classId}` +
+        `&include_students=${$('#includeStudents').is(':checked') ? 1 : 0}`;
+
+      // Optional params
+      const streamId = $('#excelStreamId').val() || '';
+      const studentId = $('#excelStudentId').val() || '';
+      const admissionNo = $('#excelAdmissionNo').val()?.trim() || '';
+      const groupId = $('#excelGroupSelect').val() || '';
+      const subjectIds = $('#excelSubjectIds').val()?.trim() || '';
+
+      if (streamId) url += `&stream_id=${streamId}`;
+      if (studentId) url += `&student_id=${studentId}`;
+      if (admissionNo) url += `&admission_no=${encodeURIComponent(admissionNo)}`;
+      if (groupId) url += `&group_id=${groupId}`;
+      if (subjectIds) url += `&subject_ids=${encodeURIComponent(subjectIds)}`;
+
+      // Show both the container AND the button
+      $('#excelSubjectsInfo').css('display', 'block').show();
+      $('#downloadExcelTemplate')
+        .attr('href', url)
+        .css('display', 'inline-block')
+        .show();
+
+      console.log('Button forced visible → URL:', url);
+    }
     // Handle Delete Exam
     $(document).on('click', '.delete-exam', function() {
       const examId = $(this).data('exam-id');
@@ -1590,6 +1910,7 @@ $statuses = ['draft', 'active', 'closed'];
           name: $(this).data('name')
         };
       }).get();
+
       const subjectIds = selectedSubjects.map(s => s.id).join(',');
       const subjectNames = selectedSubjects.map(s => s.name).join(', ');
 
@@ -1606,7 +1927,8 @@ $statuses = ['draft', 'active', 'closed'];
         $('#excelSubjectDisplay').val(subjectNames);
         $('#excelSubjectIds').val(subjectIds);
         $('#excelScope').prop('disabled', false);
-        // Update Excel header format and show download link
+
+        // Show preview of subjects & header format
         $.post('exams/functions.php', {
           action: 'get_exam_subjects_with_papers',
           exam_id: $('#excelExamId').val(),
@@ -1614,13 +1936,14 @@ $statuses = ['draft', 'active', 'closed'];
         }, function(response) {
           if (response.status === 'success') {
             let subjectsList = response.subjects.map(subject => {
-              return subject.use_papers && subject.papers.length > 0 ?
+              return subject.use_papers && subject.papers?.length > 0 ?
                 `${subject.name} (${subject.papers.map(p => p.paper_name).join(', ')})` :
                 subject.name;
             }).join(', ');
-            let headerFormat = 'Admission No';
+
+            let headerFormat = 'Student Name, Admission No';
             response.subjects.forEach(subject => {
-              if (subject.use_papers && subject.papers.length > 0) {
+              if (subject.use_papers && subject.papers?.length > 0) {
                 subject.papers.forEach(p => {
                   headerFormat += `, ${subject.name}-${p.paper_name}`;
                 });
@@ -1628,22 +1951,22 @@ $statuses = ['draft', 'active', 'closed'];
                 headerFormat += `, ${subject.name}`;
               }
             });
+
             $('#examSubjectsList').text(subjectsList);
             $('#excelHeaderFormat').text(headerFormat);
             $('#excelSubjectsInfo').show();
-            // Show and configure download link
-            $('#downloadExcelTemplate').show().attr('href', `exams/functions.php?action=generate_excel_template&exam_id=${$('#excelExamId').val()}&subject_ids=${encodeURIComponent(subjectIds)}`);
+
+            // ← Let the correct function handle button visibility & URL
+            updateDownloadLink();
           } else {
-            alert(response.message);
+            alert(response.message || 'Failed to load subject info');
           }
         }, 'json');
       }
 
-      // Keep parent modal open
       $('#selectSubjectsModal').modal('hide');
       $('#uploadResultsModal').modal('show');
     });
-
     // Manual Entry: Handle Scope Change
     $('#manualScope').on('change', function() {
       const scope = $(this).val();
@@ -1716,65 +2039,245 @@ $statuses = ['draft', 'active', 'closed'];
       }
     });
 
-    // Manual Entry: Generate result entry table with papers for multiple subjects
-    function generateManualResultEntry(examId, scope, classId, streamId = null, studentId = null, subjectIds = '') {
-      if (!examId || !scope || (scope === 'class' && !classId) || (scope === 'stream' && !streamId) || (scope === 'student' && !studentId) || !subjectIds) {
+
+    // When custom group is selected → load students + group subjects → build table
+    $('#manualGroupSelect').on('change', function() {
+      const groupId = $(this).val();
+      const examId = $('#manualExamId').val();
+      const scope = $('#manualScope').val();
+
+      if (scope !== 'custom_group' || !groupId || !examId) {
         $('#manualResultsEntry').hide().empty();
         return;
       }
+
+      // Load group students + subjects
+      $.post('exams/functions.php', {
+        action: 'get_custom_group_data',
+        exam_id: examId,
+        group_id: groupId
+      }, function(res) {
+        if (res.status !== 'success') {
+          alert(res.message || 'Failed to load group data');
+          $('#manualResultsEntry').hide().empty();
+          return;
+        }
+
+        const {
+          students,
+          subjects
+        } = res;
+
+        if (!students?.length) {
+          alert('No students found in this custom group');
+          $('#manualResultsEntry').hide().empty();
+          return;
+        }
+
+        if (!subjects?.length) {
+          alert('No subjects assigned to this custom group');
+          $('#manualResultsEntry').hide().empty();
+          return;
+        }
+
+        // Build manual entry table using group subjects
+        let table = `<table class="table table-bordered table-hover"><thead class="table-dark"><tr><th>Student (Adm No)</th>`;
+
+        const columns = [];
+        subjects.forEach(subject => {
+          let papers = subject.use_papers && subject.papers?.length > 0 ?
+            subject.papers : [{
+              paper_id: 'null',
+              paper_name: '',
+              max_score: 100
+            }];
+
+          papers.forEach(p => {
+            const header = p.paper_name ?
+              `${subject.name} - ${p.paper_name} (max ${p.max_score})` :
+              `${subject.name} (max 100)`;
+            table += `<th>${header}</th>`;
+            columns.push({
+              subject_id: subject.subject_id,
+              paper_id: p.paper_id === 'null' ? 'null' : p.paper_id,
+              max_score: p.max_score || 100
+            });
+          });
+        });
+
+        table += `</tr></thead><tbody>`;
+
+        students.forEach(student => {
+          table += `<tr><td>${student.full_name}<br><small>${student.admission_no}</small></td>`;
+          columns.forEach(col => {
+            const val = student.results?.[col.subject_id]?.[col.paper_id]?.score || '';
+            table += `<td><input type="number" class="form-control score-input"
+                  name="results[${student.student_id}][${col.subject_id}][${col.paper_id}]"
+                  min="0" max="${col.max_score}" step="0.01" value="${val}" placeholder="Score"></td>`;
+          });
+          table += `</tr>`;
+        });
+
+        table += '</tbody></table>';
+        $('#manualResultsEntry').html(table).show();
+      }, 'json').fail(() => {
+        alert('Error loading custom group data');
+        $('#manualResultsEntry').hide().empty();
+      });
+    });
+
+    // When custom group selected in Excel tab → update template info
+    $('#excelGroupSelect').on('change', function() {
+      const groupId = $(this).val();
+      const examId = $('#excelExamId').val();
+      const scope = $('#excelScope').val();
+
+      if (scope !== 'custom_group' || !groupId || !examId) {
+        $('#excelSubjectsInfo, #downloadExcelTemplate').hide();
+        return;
+      }
+
+      $.post('exams/functions.php', {
+        action: 'get_custom_group_data',
+        exam_id: examId,
+        group_id: groupId
+      }, function(res) {
+        if (res.status !== 'success') {
+          alert(res.message || 'Failed to load group data');
+          $('#excelSubjectsInfo').hide();
+          return;
+        }
+
+        const {
+          students,
+          subjects
+        } = res;
+
+        if (!students?.length) {
+          alert('No students in this group');
+          $('#excelSubjectsInfo').hide();
+          return;
+        }
+
+        // Show subjects list
+        const subjList = subjects.map(s =>
+          s.use_papers && s.papers?.length ?
+          `${s.name} (${s.papers.map(p => p.paper_name).join(', ')})` :
+          s.name
+        ).join(', ');
+        $('#examSubjectsList').text(subjList || 'No subjects assigned to group');
+
+        // Build header format
+        let header = 'Admission No,Student Name';
+        subjects.forEach(s => {
+          if (s.use_papers && s.papers?.length) {
+            s.papers.forEach(p => header += `,${s.name}-${p.paper_name}`);
+          } else {
+            header += `,${s.name}`;
+          }
+        });
+        $('#excelHeaderFormat').text(header);
+
+        $('#excelSubjectsInfo').show();
+
+        // Enable download
+        updateDownloadLink();
+      }, 'json').fail(() => {
+        alert('Error loading group data for template');
+        $('#excelSubjectsInfo').hide();
+      });
+    });
+
+    function generateManualResultEntry(examId, scope, classId, streamId = null, studentId = null, subjectIds = '', groupId = null) {
+      if (!examId || !scope || !subjectIds) {
+        $('#manualResultsEntry').hide().empty();
+        return;
+      }
+
+      // Prepare data for get_students endpoint
+      const data = {
+        action: 'get_students',
+        exam_id: examId
+      };
+
+      if (scope === 'class' && classId) {
+        data.class_id = classId;
+      } else if (scope === 'stream' && streamId) {
+        data.stream_id = streamId;
+      } else if (scope === 'student' && studentId) {
+        data.student_id = studentId;
+      } else if (scope === 'custom_group' && groupId) {
+        data.group_id = groupId; // ← NEW: send group_id to backend
+        data.scope = 'custom_group'; // optional, helps backend know context
+      } else {
+        $('#manualResultsEntry').hide().empty();
+        return;
+      }
+
       $.post('exams/functions.php', {
         action: 'get_exam_subjects_with_papers',
         exam_id: examId,
         subject_ids: subjectIds
       }, function(response) {
-        if (response.status === 'success') {
-          const subjects = response.subjects;
-          const data = {
-            action: 'get_students',
-            exam_id: examId
-          };
-          if (scope === 'class') data.class_id = classId;
-          if (scope === 'stream') data.stream_id = streamId;
-          if (scope === 'student') data.student_id = studentId;
-          $.post('exams/functions.php', data, function(res) {
-            if (res.status === 'success') {
-              let table = `<table class="table table-bordered table-hover"><thead class="table-dark"><tr><th>Student</th>`;
-              const subjectColumns = [];
-              subjects.forEach(subject => {
-                let papers = subject.use_papers && subject.papers.length > 0 ? subject.papers : [{
+        if (response.status !== 'success') {
+          alert(response.message || 'Failed to load subjects');
+          return;
+        }
+
+        const subjects = response.subjects;
+
+        // Now fetch students using the prepared data
+        $.post('exams/functions.php', data, function(res) {
+          if (res.status === 'success') {
+            let table = `<table class="table table-bordered table-hover"><thead class="table-dark"><tr><th>Student</th>`;
+            const subjectColumns = [];
+
+            subjects.forEach(subject => {
+              let papers = subject.use_papers && subject.papers?.length > 0 ?
+                subject.papers : [{
                   paper_id: 'null',
                   paper_name: '',
                   max_score: 100
                 }];
-                papers.forEach(p => {
-                  const columnHeader = p.paper_name ? `${subject.name} - ${p.paper_name} (out of ${p.max_score})` : `${subject.name} (out of 100)`;
-                  table += `<th>${columnHeader}</th>`;
-                  subjectColumns.push({
-                    subject_id: subject.subject_id,
-                    paper_id: p.paper_id === 'null' ? 'null' : p.paper_id,
-                    max_score: p.max_score || 100
-                  });
+
+              papers.forEach(p => {
+                const header = p.paper_name ?
+                  `${subject.name} - ${p.paper_name} (out of ${p.max_score})` :
+                  `${subject.name} (out of 100)`;
+                table += `<th>${header}</th>`;
+                subjectColumns.push({
+                  subject_id: subject.subject_id,
+                  paper_id: p.paper_id === 'null' ? 'null' : p.paper_id,
+                  max_score: p.max_score || 100
                 });
               });
-              table += `</tr></thead><tbody>`;
-              res.students.forEach(student => {
-                table += `<tr><td>${student.full_name}</td>`;
-                subjectColumns.forEach(col => {
-                  const value = student.results?.[col.subject_id]?.[col.paper_id]?.score || '';
-                  table += `<td><input type="number" class="form-control score-input" name="results[${student.student_id}][${col.subject_id}][${col.paper_id}]" min="0" max="${col.max_score}" step="0.01" value="${value}" placeholder="Score"></td>`;
-                });
-                table += `</tr>`;
+            });
+
+            table += `</tr></thead><tbody>`;
+
+            res.students.forEach(student => {
+              table += `<tr><td>${student.full_name} (${student.admission_no})</td>`;
+              subjectColumns.forEach(col => {
+                const value = student.results?.[col.subject_id]?.[col.paper_id]?.score || '';
+                table += `<td><input type="number" class="form-control score-input" 
+                      name="results[${student.student_id}][${col.subject_id}][${col.paper_id}]" 
+                      min="0" max="${col.max_score}" step="0.01" value="${value}" placeholder="Score"></td>`;
               });
-              table += '</tbody></table>';
-              $('#manualResultsEntry').html(table).show();
-            } else {
-              alert(res.message);
-            }
-          }, 'json');
-        } else {
-          alert(response.message);
-        }
-      }, 'json');
+              table += `</tr>`;
+            });
+
+            table += '</tbody></table>';
+            $('#manualResultsEntry').html(table).show();
+          } else {
+            alert(res.message || 'No students found in this group');
+            $('#manualResultsEntry').hide().empty();
+          }
+        }, 'json').fail(function() {
+          alert('Error loading students for group');
+        });
+      }, 'json').fail(function() {
+        alert('Error loading subjects');
+      });
     }
 
     // Manual Entry: Form Submission
@@ -1796,10 +2299,14 @@ $statuses = ['draft', 'active', 'closed'];
     $('#excelScope').on('change', function() {
       const scope = $(this).val();
       const examId = $('#excelExamId').val();
-      $('#excelStreamDiv, #excelStudentDiv').hide();
+
+      // Hide conditional fields first
+      $('#excelStreamDiv, #excelStudentDiv, #excelSubjectsInfo, #downloadExcelTemplate').hide();
       $('#excelStreamId, #excelStudentId, #excelAdmissionNo').val('').empty().append('<option value="">Select</option>');
+
       if (scope && examId) {
         const classId = $('#excelClassId').val();
+
         if (scope === 'stream') {
           $.post('exams/functions.php', {
             action: 'get_streams',
@@ -1833,6 +2340,13 @@ $statuses = ['draft', 'active', 'closed'];
             }
           }, 'json');
         }
+
+        // Re-show preview section if subjects are already selected
+        if ($('#excelSubjectIds').val()) {
+          $('#excelSubjectsInfo').show();
+        }
+
+        // Always re-evaluate download button
         updateDownloadLink();
       }
     });
@@ -1848,8 +2362,9 @@ $statuses = ['draft', 'active', 'closed'];
           name: $(this).data('name')
         };
       }).get();
+
       const subjectIds = selectedSubjects.map(s => s.id).join(',');
-      const subjectNames = selectedSubjects.map(s => s.name).join(',');
+      const subjectNames = selectedSubjects.map(s => s.name).join(', ');
 
       if (selectedSubjects.length === 0) {
         alert('Please select at least one subject.');
@@ -1864,6 +2379,8 @@ $statuses = ['draft', 'active', 'closed'];
         $('#excelSubjectDisplay').val(subjectNames);
         $('#excelSubjectIds').val(subjectIds);
         $('#excelScope').prop('disabled', false);
+
+        // Show preview (good part — keep this)
         $.post('exams/functions.php', {
           action: 'get_exam_subjects_with_papers',
           exam_id: $('#excelExamId').val(),
@@ -1871,13 +2388,14 @@ $statuses = ['draft', 'active', 'closed'];
         }, function(response) {
           if (response.status === 'success') {
             let subjectsList = response.subjects.map(subject => {
-              return subject.use_papers && subject.papers.length > 0 ?
+              return subject.use_papers && subject.papers?.length > 0 ?
                 `${subject.name} (${subject.papers.map(p => p.paper_name).join(', ')})` :
                 subject.name;
             }).join(', ');
-            let headerFormat = 'Admission No';
+
+            let headerFormat = 'Student Name, Admission No'; // ← updated to match your template
             response.subjects.forEach(subject => {
-              if (subject.use_papers && subject.papers.length > 0) {
+              if (subject.use_papers && subject.papers?.length > 0) {
                 subject.papers.forEach(p => {
                   headerFormat += `, ${subject.name}-${p.paper_name}`;
                 });
@@ -1885,12 +2403,15 @@ $statuses = ['draft', 'active', 'closed'];
                 headerFormat += `, ${subject.name}`;
               }
             });
+
             $('#examSubjectsList').text(subjectsList);
             $('#excelHeaderFormat').text(headerFormat);
             $('#excelSubjectsInfo').show();
+
+            // ← MOST IMPORTANT: Let the correct function control the button
             updateDownloadLink();
           } else {
-            alert(response.message);
+            alert(response.message || 'Failed to preview subjects');
           }
         }, 'json');
       }
@@ -1898,35 +2419,7 @@ $statuses = ['draft', 'active', 'closed'];
       $('#selectSubjectsModal').modal('hide');
       $('#uploadResultsModal').modal('show');
     });
-    // Function to update download link
-    function updateDownloadLink() {
-      const examId = $('#excelExamId').val();
-      const subjectIds = $('#excelSubjectIds').val();
-      const scope = $('#excelScope').val();
-      const classId = $('#excelClassId').val();
-      const streamId = $('#excelStreamId').val();
-      const studentId = $('#excelStudentId').val();
-      const admissionNo = $('#excelAdmissionNo').val();
-      const includeStudents = $('#includeStudents').is(':checked');
 
-      if (examId && subjectIds && scope && classId) {
-        let url = `exams/functions.php?action=generate_excel_template&exam_id=${examId}&subject_ids=${encodeURIComponent(subjectIds)}&scope=${scope}&class_id=${classId}&include_students=${includeStudents ? 1 : 0}`;
-        if (scope === 'stream' && streamId) {
-          url += `&stream_id=${streamId}`;
-        } else if (scope === 'student') {
-          if (admissionNo) {
-            url += `&admission_no=${encodeURIComponent(admissionNo)}`;
-          } else if (studentId) {
-            const selectedOption = $('#excelStudentId option:selected');
-            const admissionNoFromSelect = selectedOption.data('admission-no') || '';
-            url += `&admission_no=${encodeURIComponent(admissionNoFromSelect)}`;
-          }
-        }
-        $('#downloadExcelTemplate').attr('href', url).show();
-      } else {
-        $('#downloadExcelTemplate').hide();
-      }
-    }
 
     // Excel Upload: Form Submission
     $('#excelResultsForm').on('submit', function(e) {
@@ -1961,6 +2454,126 @@ $statuses = ['draft', 'active', 'closed'];
       });
     });
 
+    // ────────────────────────────────────────────────
+    // Custom Group support — both tabs
+    // ────────────────────────────────────────────────
+    function loadCustomGroups(examId, targetSelectId) {
+      if (!examId) return;
+
+      $.post('exams/functions.php', {
+        action: 'get_custom_groups_for_exam',
+        exam_id: examId
+      }, function(res) {
+        if (res.status === 'success') {
+          const $select = $('#' + targetSelectId);
+          $select.empty().append('<option value="">Select Group</option>');
+
+          if (res.groups.length === 0) {
+            $select.append('<option value="" disabled>No custom groups found for this exam/class</option>');
+          } else {
+            res.groups.forEach(g => {
+              $select.append(`<option value="${g.group_id}">${g.name}</option>`);
+            });
+          }
+        } else {
+          console.warn('Failed to load custom groups:', res.message);
+        }
+      }, 'json').fail(function() {
+        console.error('AJAX fail loading custom groups');
+      });
+    }
+
+    // When exam changes → reload groups for both selects
+    $('#manualExamId, #excelExamId').on('change', function() {
+      const examId = $(this).val();
+      const isManual = this.id === 'manualExamId';
+
+      // Load groups for the active tab
+      loadCustomGroups(examId, isManual ? 'manualGroupSelect' : 'excelGroupSelect');
+
+      // Also reset group selection
+      if (isManual) {
+        $('#manualGroupSelect').val('');
+      } else {
+        $('#excelGroupSelect').val('');
+      }
+    });
+
+    // When scope changes → show/hide fields + handle custom_group specially
+    $('#manualScope, #excelScope').on('change', function() {
+      const scope = $(this).val();
+      const isManual = this.id === 'manualScope';
+      const $groupDiv = isManual ? $('#manualGroupDiv') : $('#excelGroupDiv');
+      const $groupSelect = isManual ? $('#manualGroupSelect') : $('#excelGroupSelect');
+
+      // Reset / hide all conditional divs first
+      if (isManual) {
+        $('#manualStreamDiv, #manualStudentDiv, #manualResultsEntry').hide();
+        $('#manualStreamId, #manualStudentId').val('').find('option:not(:first)').remove();
+      } else {
+        $('#excelStreamDiv, #excelStudentDiv, #excelSubjectsInfo').hide();
+        $('#excelStreamId, #excelStudentId, #excelAdmissionNo').val('').find('option:not(:first)').remove();
+        $('#downloadExcelTemplate').hide();
+      }
+
+      if (scope === 'custom_group') {
+        // ── Custom Group mode ──
+        $groupDiv.show();
+        $groupSelect.prop('required', true);
+
+        // Hide subjects completely (group has its own subjects)
+        if (isManual) {
+          $('#manualSubjectDiv').hide();
+          $('#manualSubjectIds').val('');
+        } else {
+          $('#excelSubjectDiv').hide();
+          $('#excelSubjectIds').val('');
+        }
+
+        // Hide class/stream/student divs (not needed)
+        if (isManual) {
+          $('#manualClassDiv, #manualStreamDiv, #manualStudentDiv').hide();
+        } else {
+          $('#excelClassDiv, #excelStreamDiv, #excelStudentDiv').hide();
+        }
+
+        // Load groups if exam is already selected
+        const examId = isManual ? $('#manualExamId').val() : $('#excelExamId').val();
+        if (examId && $groupSelect.find('option').length <= 1) {
+          loadCustomGroups(examId, isManual ? 'manualGroupSelect' : 'excelGroupSelect');
+        }
+
+        // Trigger group change (if already selected)
+        $groupSelect.trigger('change');
+      } else {
+        // ── Normal scopes ──
+        $groupDiv.hide();
+        $groupSelect.prop('required', false).val('');
+
+        // Show subjects selection
+        if (isManual) {
+          $('#manualSubjectDiv').show();
+        } else {
+          $('#excelSubjectDiv').show();
+        }
+
+        // Show relevant divs based on scope
+        if (scope === 'stream') {
+          if (isManual) $('#manualStreamDiv').show();
+          else $('#excelStreamDiv').show();
+        } else if (scope === 'student') {
+          if (isManual) $('#manualStudentDiv').show();
+          else $('#excelStudentDiv').show();
+        } else if (scope === 'class') {
+          // Class = no extra divs needed
+        }
+      }
+
+      // Update Excel download link (only excel tab)
+      if (!isManual) {
+        updateDownloadLink();
+      }
+    });
     // Create Grading System
     $('#createGradingForm').on('submit', function(e) {
       e.preventDefault();
@@ -2134,6 +2747,7 @@ $statuses = ['draft', 'active', 'closed'];
     $('#createExamModal').modal('show');
   });
 
+
   // Show/hide min subjects input based on checkbox state
   $(document).on('change', '.class-checkbox', function() {
     const $minSubjectsInput = $(this).closest('.form-check').find('.min-subjects-input');
@@ -2142,6 +2756,118 @@ $statuses = ['draft', 'active', 'closed'];
     } else {
       $minSubjectsInput.hide().val('');
     }
+  });
+
+  // Fix aria-hidden focus warning on all modals
+  $('.modal').on('hide.bs.modal', function(e) {
+    // Blur whatever has focus inside this modal
+    if (document.activeElement && this.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+  });
+
+  // Export Raw Results logic
+  $(document).on('click', '#exportRawResultsBtn', function() {
+    const examId = $('#viewSubjectsModal').data('exam-id');
+    if (!examId) {
+      alert("No exam loaded.");
+      return;
+    }
+
+    // Reset modal state
+    $('#exportScope').val('').trigger('change');
+    $('#exportCustomGroup').html('<option value="">— choose group —</option>');
+    $('#startPdfExport').prop('disabled', true);
+    $('#scopeHelpText').text("Select an option above to continue.");
+
+    // Load available custom groups for this exam's class
+    $.ajax({
+      url: 'exams/functions.php',
+      type: 'POST',
+      data: {
+        action: 'get_custom_groups_for_exam',
+        exam_id: examId
+      },
+      dataType: 'json',
+      success: function(res) {
+        if (res.status === 'success' && res.groups?.length > 0) {
+          res.groups.forEach(g => {
+            $('#exportCustomGroup').append(
+              `<option value="${g.group_id}">${g.name}</option>`
+            );
+          });
+        } else {
+          $('#exportCustomGroup').append(
+            '<option value="" disabled>No custom groups found</option>'
+          );
+        }
+      }
+    });
+
+    $('#exportRawModal').modal('show');
+  });
+
+  // Scope change → show/hide custom group + enable button
+  $('#exportScope').on('change', function() {
+    const scope = $(this).val();
+    const $btn = $('#startPdfExport');
+
+    $('#customGroupContainer').toggle(scope === 'custom_group');
+
+    if (!scope) {
+      $btn.prop('disabled', true);
+      $('#scopeHelpText').html("Select an option above to continue.");
+      return;
+    }
+
+    let help = '';
+    if (scope === 'current_view') {
+      help = 'Includes only <strong>currently filtered</strong> students and subjects.';
+    } else if (scope === 'stream') {
+      const streamText = $('#streamSelect option:selected').text() || 'all streams';
+      help = `All students in <strong>${streamText}</strong> – all subjects.`;
+    } else if (scope === 'custom_group') {
+      help = 'Students and subjects from the selected custom group.';
+      if ($('#exportCustomGroup option').length <= 1) {
+        help += '<br><span class="text-danger">No groups available.</span>';
+        $btn.prop('disabled', true);
+        return;
+      }
+    }
+
+    $('#scopeHelpText').html(help);
+    $btn.prop('disabled', scope === 'custom_group' && !$('#exportCustomGroup').val());
+  });
+
+  // Custom group change
+  $('#exportCustomGroup').on('change', function() {
+    const scope = $('#exportScope').val();
+    $('#startPdfExport').prop('disabled', scope === 'custom_group' && !$(this).val());
+  });
+
+  // Trigger PDF download
+  $('#startPdfExport').on('click', function() {
+    const examId = $('#viewSubjectsModal').data('exam-id');
+    let scope = $('#exportScope').val();
+    let url = `exams/functions.php?action=export_raw_pdf&exam_id=${examId}&scope=${scope}`;
+
+    if (scope === 'custom_group') {
+      const gid = $('#exportCustomGroup').val();
+      if (gid) url += `&group_id=${gid}`;
+    } else if (scope === 'stream') {
+      const sid = $('#streamSelect').val();
+      if (sid) url += `&stream_id=${sid}`;
+    } else if (scope === 'current_view') {
+      const sid = $('#streamSelect').val();
+      const subj = $('#subjectSelect').val();
+      const adm = $('#admissionNoFilter').val()?.trim();
+      if (sid) url += `&stream_id=${sid}`;
+      if (subj) url += `&subject_id=${subj}`;
+      if (adm) url += `&adm_filter=${encodeURIComponent(adm)}`;
+    }
+
+    window.open(url, '_blank');
+    $('#exportRawModal').modal('hide');
   });
 </script>
 

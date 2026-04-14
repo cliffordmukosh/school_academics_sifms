@@ -800,29 +800,105 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             echo json_encode(['status' => 'success', 'terms' => $terms]);
             break;
         case 'get_custom_groups_for_class':
-            $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
-            if (!$class_id) {
-                echo json_encode(['status' => 'error', 'message' => 'Class ID required']);
+            $class_id = (int)($_POST['class_id'] ?? 0);
+
+            if ($class_id <= 0) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Invalid or missing class_id'
+                ]);
                 exit;
             }
 
+            // Fetch only groups linked to CBC classes (is_cbc = 1)
             $stmt = $conn->prepare("
-        SELECT group_id, name
-        FROM custom_groups
-        WHERE school_id = ? AND class_id = ?
-        ORDER BY name
+        SELECT 
+            cg.group_id,
+            cg.name,
+            cg.description,
+            cg.created_at,
+            COUNT(cgs.student_id) AS student_count   -- optional: show how many students in group
+        FROM custom_groups cg
+        INNER JOIN classes c ON cg.class_id = c.class_id
+        LEFT JOIN custom_group_students cgs ON cg.group_id = cgs.group_id
+        WHERE cg.school_id = ?
+          AND cg.class_id = ?
+          AND c.is_cbc = 1                          -- <<<< ONLY CBC CLASSES
+        GROUP BY cg.group_id
+        ORDER BY cg.name ASC
     ");
+
+            if (!$stmt) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Database prepare error: ' . $conn->error
+                ]);
+                exit;
+            }
+
             $stmt->bind_param("ii", $school_id, $class_id);
             $stmt->execute();
-            $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $result = $stmt->get_result();
+
+            $groups = [];
+            while ($row = $result->fetch_assoc()) {
+                $groups[] = [
+                    'group_id'     => (int)$row['group_id'],
+                    'name'         => $row['name'],
+                    'description'  => $row['description'] ?: '',
+                    'student_count' => (int)$row['student_count'],
+                    'created_at'   => $row['created_at']
+                ];
+            }
+
             $stmt->close();
 
             echo json_encode([
                 'status' => 'success',
-                'groups' => $groups
+                'groups' => $groups,
+                'debug'  => [                     // optional - remove in production
+                    'class_id'    => $class_id,
+                    'school_id'   => $school_id,
+                    'found'       => count($groups)
+                ]
             ]);
             break;
 
+        case 'get_houses':
+            $stmt = $conn->prepare("
+        SELECT house_id, name
+        FROM houses
+        WHERE school_id = ?
+        ORDER BY name ASC
+    ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $houses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status' => 'success',
+                'houses' => $houses
+            ]);
+            break;
+
+        case 'get_dormitories':
+            $stmt = $conn->prepare("
+            SELECT dormitory_id, name
+            FROM dormitories
+            WHERE school_id = ?
+            ORDER BY name ASC
+        ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $dormitories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status' => 'success',
+                'dormitories' => $dormitories ?: []
+            ]);
+            break;
         case 'get_school_analysis_exams':
             $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
             $term = isset($_POST['term']) ? $_POST['term'] : '';
@@ -851,7 +927,58 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             error_log("get_school_analysis_exams: Fetched " . count($exams) . " exams for class_id=$class_id, term=$term, year=$year");
             echo json_encode(['status' => 'success', 'exams' => $exams]);
             break;
+        case 'get_subjects_for_group':
+            $group_id = (int)($_POST['group_id'] ?? 0);
 
+            if ($group_id <= 0) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Invalid or missing group_id'
+                ]);
+                exit;
+            }
+
+            // Security: must belong to this school
+            $stmt = $conn->prepare("
+        SELECT 1 
+        FROM custom_groups 
+        WHERE group_id = ? AND school_id = ?
+    ");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            if ($stmt->get_result()->num_rows === 0) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Group not found or access denied'
+                ]);
+                $stmt->close();
+                exit;
+            }
+            $stmt->close();
+
+            // Get subjects in this group
+            $stmt = $conn->prepare("
+        SELECT 
+            s.subject_id, 
+            s.name
+        FROM custom_group_subjects cgs
+        INNER JOIN subjects s ON cgs.subject_id = s.subject_id
+        WHERE cgs.group_id = ?
+          AND s.school_id = ?
+          AND s.deleted_at IS NULL
+        ORDER BY s.name ASC
+    ");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status'   => 'success',
+                'subjects' => $subjects,
+                'count'    => count($subjects)
+            ]);
+            break;
         default:
             error_log("Invalid action received: $action");
             echo json_encode(['status' => 'error', 'message' => 'Invalid action']);

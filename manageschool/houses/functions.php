@@ -323,14 +323,21 @@ switch ($action) {
     case 'get_students_in_house':
         $house_id = (int)($_POST['house_id'] ?? 0);
 
+        if ($house_id <= 0) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid house']);
+            exit;
+        }
+
         $stmt = $conn->prepare("
             SELECT s.student_id, s.full_name, s.admission_no, c.form_name, st.stream_name
             FROM student_houses sh
             JOIN students s ON sh.student_id = s.student_id
             JOIN classes c ON s.class_id = c.class_id
             JOIN streams st ON s.stream_id = st.stream_id
-            WHERE sh.house_id = ? AND sh.is_current = 1 AND s.school_id = ?
-            ORDER BY s.full_name ASC
+            WHERE sh.house_id = ? 
+              AND sh.is_current = 1 
+              AND s.school_id = ?
+            ORDER BY s.admission_no ASC, s.full_name ASC
         ");
         $stmt->bind_param("ii", $house_id, $school_id);
         $stmt->execute();
@@ -338,6 +345,7 @@ switch ($action) {
         echo json_encode(['status' => 'success', 'students' => $students]);
         $stmt->close();
         break;
+
     case 'preview_excel_students':
         if (empty($_FILES['excel_file']['tmp_name'])) {
             echo json_encode(['status' => 'error', 'message' => 'No file uploaded']);
@@ -472,6 +480,87 @@ switch ($action) {
             ]);
         }
         $stmt->close();
+        break;
+    case 'export_house_students':
+        $house_id = (int)($_GET['house_id'] ?? 0);
+
+        if ($house_id <= 0) {
+            die('Invalid house');
+        }
+
+        // Get house name for filename
+        $stmt = $conn->prepare("SELECT name FROM houses WHERE house_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $house_id, $school_id);
+        $stmt->execute();
+        $house = $stmt->get_result()->fetch_assoc();
+        $house_name = $house ? $house['name'] : 'Unknown_House';
+        $stmt->close();
+
+        // Fetch students in this house
+        $stmt = $conn->prepare("
+        SELECT s.admission_no, s.full_name, c.form_name, st.stream_name
+        FROM student_houses sh
+        JOIN students s ON sh.student_id = s.student_id
+        JOIN classes c ON s.class_id = c.class_id
+        JOIN streams st ON s.stream_id = st.stream_id
+        WHERE sh.house_id = ? AND sh.is_current = 1 AND s.school_id = ?
+        ORDER BY s.admission_no ASC
+    ");
+        $stmt->bind_param("ii", $house_id, $school_id);
+        $stmt->execute();
+        $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        if (empty($students)) {
+            die('No students in this house');
+        }
+
+        try {
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Title row
+            $sheet->setCellValue('A1', "Students in House: $house_name");
+            $sheet->mergeCells('A1:D1');
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+            // Headers (row 3)
+            $sheet->setCellValue('A3', 'Admission No');
+            $sheet->setCellValue('B3', 'Full Name');
+            $sheet->setCellValue('C3', 'Class');
+            $sheet->setCellValue('D3', 'Stream');
+            $sheet->getStyle('A3:D3')->getFont()->setBold(true);
+            $sheet->getStyle('A3:D3')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FFD9EAD3');
+
+            // Data rows
+            $row = 4;
+            foreach ($students as $student) {
+                $sheet->setCellValue("A$row", $student['admission_no']);
+                $sheet->setCellValue("B$row", $student['full_name']);
+                $sheet->setCellValue("C$row", $student['form_name']);
+                $sheet->setCellValue("D$row", $student['stream_name']);
+                $row++;
+            }
+
+            // Auto-size columns
+            foreach (range('A', 'D') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            // Download headers
+            $filename = "House_" . str_replace(' ', '_', $house_name) . "_Students_" . date('Y-m-d') . ".xlsx";
+
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="' . $filename . '"');
+            header('Cache-Control: max-age=0');
+
+            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->save('php://output');
+            exit;
+        } catch (Exception $e) {
+            die('Export failed: ' . $e->getMessage());
+        }
         break;
     default:
         echo json_encode(['status' => 'error', 'message' => 'Invalid action']);

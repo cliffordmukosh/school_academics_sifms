@@ -961,6 +961,7 @@ case 'download_excel_template':
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
             exit;
         }
+
         $stmt = $conn->prepare("
         SELECT cg.group_id, cg.name, cg.description, c.class_id, c.form_name,
                GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS subjects,
@@ -975,21 +976,24 @@ case 'download_excel_template':
         LEFT JOIN students st ON cgst.student_id = st.student_id
         WHERE cg.school_id = ?
         GROUP BY cg.group_id
+        ORDER BY cg.group_id DESC
     ");
+
         $stmt->bind_param("i", $school_id);
         $stmt->execute();
         $result = $stmt->get_result();
         $groups = $result->fetch_all(MYSQLI_ASSOC);
+
         foreach ($groups as &$group) {
-            $group['subjects'] = explode(', ', $group['subjects'] ?? '');
-            $group['subject_ids'] = explode(',', $group['subject_ids'] ?? '');
-            $group['students'] = explode(', ', $group['students'] ?? '');
-            $group['student_ids'] = explode(',', $group['student_ids'] ?? '');
+            $group['subjects']    = explode(', ', $group['subjects']    ?? '');
+            $group['subject_ids'] = explode(',',   $group['subject_ids'] ?? '');
+            $group['students']    = explode(', ', $group['students']    ?? '');
+            $group['student_ids'] = explode(',',   $group['student_ids'] ?? '');
         }
+
         echo json_encode(['status' => 'success', 'groups' => $groups]);
         $stmt->close();
         break;
-
     case 'add_custom_group':
         if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
@@ -1038,60 +1042,156 @@ case 'download_excel_template':
         }
         echo json_encode(['status' => 'success', 'message' => 'Group created successfully']);
         break;
-
     case 'edit_custom_group':
         if (!hasPermission($conn, $user_id, $role_id, 'manage_students', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: manage_students']);
             exit;
         }
-        $group_id = (int)$_POST['group_id'];
-        $name = sanitize($conn, $_POST['name']);
-        $class_id = (int)$_POST['class_id'];
-        $description = sanitize($conn, $_POST['description']);
-        $subject_ids = $_POST['subject_ids'] ?? [];
-        $student_ids = $_POST['student_ids'] ?? [];
-        if (empty($group_id) || empty($name) || empty($class_id) || empty($subject_ids) || empty($student_ids)) {
-            echo json_encode(['status' => 'error', 'message' => 'Required fields missing']);
+
+        // ────────────────────────────────────────────────
+        //  Input validation & sanitization
+        // ────────────────────────────────────────────────
+        $group_id    = (int) ($_POST['group_id'] ?? 0);
+        $name        = sanitize($conn, $_POST['name'] ?? '');
+        $class_id    = (int) ($_POST['class_id'] ?? 0);
+        $description = sanitize($conn, $_POST['description'] ?? '');
+
+        $subject_ids = array_filter(array_map('intval', (array) ($_POST['subject_ids'] ?? [])));
+        $student_ids = array_filter(array_map('intval', (array) ($_POST['student_ids'] ?? [])));
+
+        if ($group_id <= 0 || empty($name) || $class_id <= 0) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'Group ID, name and class are required'
+            ]);
             exit;
         }
-        // Verify group
-        $stmt = $conn->prepare("SELECT group_id FROM custom_groups WHERE group_id = ? AND school_id = ?");
+
+        // Optional strict validation (remove if you want to allow empty groups now)
+        if (empty($subject_ids)) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'At least one subject must be selected'
+            ]);
+            exit;
+        }
+        if (empty($student_ids)) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'At least one student must be selected'
+            ]);
+            exit;
+        }
+
+        // ────────────────────────────────────────────────
+        //  Verify group exists and belongs to this school
+        // ────────────────────────────────────────────────
+        $stmt = $conn->prepare("
+        SELECT 1 
+        FROM custom_groups 
+        WHERE group_id = ? AND school_id = ?
+    ");
         $stmt->bind_param("ii", $group_id, $school_id);
         $stmt->execute();
         if ($stmt->get_result()->num_rows === 0) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid group']);
+            echo json_encode(['status' => 'error', 'message' => 'Group not found or access denied']);
             exit;
         }
         $stmt->close();
-        // Update group
-        $stmt = $conn->prepare("UPDATE custom_groups SET name = ?, class_id = ?, description = ? WHERE group_id = ?");
+
+        // ────────────────────────────────────────────────
+        //  1. Update the main group record (NO updated_at)
+        // ────────────────────────────────────────────────
+        $stmt = $conn->prepare("
+        UPDATE custom_groups 
+        SET name = ?, 
+            class_id = ?, 
+            description = ?
+        WHERE group_id = ?
+    ");
         $stmt->bind_param("sisi", $name, $class_id, $description, $group_id);
         $stmt->execute();
         $stmt->close();
-        // Clear existing subjects and students
-        $stmt = $conn->prepare("DELETE FROM custom_group_subjects WHERE group_id = ?");
-        $stmt->bind_param("i", $group_id);
-        $stmt->execute();
-        $stmt->close();
-        $stmt = $conn->prepare("DELETE FROM custom_group_students WHERE group_id = ?");
-        $stmt->bind_param("i", $group_id);
-        $stmt->execute();
-        $stmt->close();
-        // Insert new subjects
-        foreach ($subject_ids as $subject_id) {
-            $stmt = $conn->prepare("INSERT INTO custom_group_subjects (group_id, subject_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $group_id, $subject_id);
+
+        // ────────────────────────────────────────────────
+        //  2. SUBJECTS – diff-based (remove unchecked, add new)
+        // ────────────────────────────────────────────────
+        $current_subjects = [];
+        $res = $conn->query("SELECT subject_id FROM custom_group_subjects WHERE group_id = $group_id");
+        while ($row = $res->fetch_assoc()) {
+            $current_subjects[] = (int)$row['subject_id'];
+        }
+
+        $to_remove_subjects = array_diff($current_subjects, $subject_ids);
+        if ($to_remove_subjects) {
+            $placeholders = implode(',', array_fill(0, count($to_remove_subjects), '?'));
+            $stmt = $conn->prepare("
+            DELETE FROM custom_group_subjects 
+            WHERE group_id = ? AND subject_id IN ($placeholders)
+        ");
+            $params = array_merge([$group_id], $to_remove_subjects);
+            $types = str_repeat('i', count($params));
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $stmt->close();
         }
-        // Insert new students
-        foreach ($student_ids as $student_id) {
-            $stmt = $conn->prepare("INSERT INTO custom_group_students (group_id, student_id) VALUES (?, ?)");
-            $stmt->bind_param("ii", $group_id, $student_id);
+
+        $to_add_subjects = array_diff($subject_ids, $current_subjects);
+        if ($to_add_subjects) {
+            $stmt = $conn->prepare("
+            INSERT INTO custom_group_subjects (group_id, subject_id) 
+            VALUES (?, ?)
+        ");
+            foreach ($to_add_subjects as $sid) {
+                $stmt->bind_param("ii", $group_id, $sid);
+                $stmt->execute();
+            }
+            $stmt->close();
+        }
+
+        // ────────────────────────────────────────────────
+        //  3. STUDENTS – same diff logic
+        // ────────────────────────────────────────────────
+        $current_students = [];
+        $res = $conn->query("SELECT student_id FROM custom_group_students WHERE group_id = $group_id");
+        while ($row = $res->fetch_assoc()) {
+            $current_students[] = (int)$row['student_id'];
+        }
+
+        $to_remove_students = array_diff($current_students, $student_ids);
+        if ($to_remove_students) {
+            $placeholders = implode(',', array_fill(0, count($to_remove_students), '?'));
+            $stmt = $conn->prepare("
+            DELETE FROM custom_group_students 
+            WHERE group_id = ? AND student_id IN ($placeholders)
+        ");
+            $params = array_merge([$group_id], $to_remove_students);
+            $types = str_repeat('i', count($params));
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $stmt->close();
         }
-        echo json_encode(['status' => 'success', 'message' => 'Group updated successfully']);
+
+        $to_add_students = array_diff($student_ids, $current_students);
+        if ($to_add_students) {
+            $stmt = $conn->prepare("
+            INSERT INTO custom_group_students (group_id, student_id) 
+            VALUES (?, ?)
+        ");
+            foreach ($to_add_students as $sid) {
+                $stmt->bind_param("ii", $group_id, $sid);
+                $stmt->execute();
+            }
+            $stmt->close();
+        }
+
+        // ────────────────────────────────────────────────
+        //  Success response
+        // ────────────────────────────────────────────────
+        echo json_encode([
+            'status'  => 'success',
+            'message' => 'Custom group updated successfully'
+        ]);
         break;
 
     case 'delete_custom_group':
@@ -1146,9 +1246,112 @@ case 'download_excel_template':
 
         $stmt->close();
         break;
+
+
+    case 'export_custom_group_students':
+        if (!hasPermission($conn, $user_id, $role_id, 'view_students', $school_id)) {
+            header('HTTP/1.1 403 Forbidden');
+            echo 'Permission denied';
+            exit;
+        }
+
+        $group_id = (int)($_GET['group_id'] ?? 0);
+        if ($group_id <= 0) {
+            echo 'Invalid group ID';
+            exit;
+        }
+
+        // Verify group belongs to this school
+        $stmt = $conn->prepare("SELECT name FROM custom_groups WHERE group_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $group_id, $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows === 0) {
+            echo 'Group not found';
+            exit;
+        }
+        $group = $result->fetch_assoc();
+        $stmt->close();
+
+        // Fetch students – sorted from smallest admission number to largest
+        $stmt = $conn->prepare("
+            SELECT 
+                s.admission_no,
+                s.full_name,
+                s.gender,
+                c.form_name AS class_name,
+                st.stream_name
+            FROM custom_group_students cgs
+            JOIN students s ON cgs.student_id = s.student_id
+            JOIN classes c ON s.class_id = c.class_id
+            JOIN streams st ON s.stream_id = st.stream_id
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ? 
+              AND s.deleted_at IS NULL
+            ORDER BY s.admission_no ASC   /* smallest → largest */
+        ");
+        $stmt->bind_param("ii", $group_id, $school_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $students = $result->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        // ==================== CREATE EXCEL (clean & minimal) ====================
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Headers (only the 5 columns you want)
+        $headers = ['Admission No', 'Full Name', 'Gender', 'Class', 'Stream'];
+        $col = 1;
+        foreach ($headers as $header) {
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->setCellValue($columnLetter . '1', $header);
+            $col++;
+        }
+
+        // Data rows (already sorted smallest admission_no → largest)
+        $row = 2;
+        foreach ($students as $student) {
+            $col = 1;
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col++);
+            $sheet->setCellValue($columnLetter . $row, $student['admission_no'] ?? '');
+
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col++);
+            $sheet->setCellValue($columnLetter . $row, $student['full_name'] ?? '');
+
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col++);
+            $sheet->setCellValue($columnLetter . $row, $student['gender'] ?? '');
+
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col++);
+            $sheet->setCellValue($columnLetter . $row, $student['class_name'] ?? '');
+
+            $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col++);
+            $sheet->setCellValue($columnLetter . $row, $student['stream_name'] ?? '');
+            $row++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', $sheet->getHighestColumn()) as $c) {
+            $sheet->getColumnDimension($c)->setAutoSize(true);
+        }
+
+        // Filename
+        $filenameParam = $_GET['filename'] ?? 'custom_group';
+        $safeFilename = preg_replace('/[^a-zA-Z0-9_-]/', '', $filenameParam);
+        $downloadName = "students_{$safeFilename}.xlsx";
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+        break;
     // ────────────────────────────────────────────────
     // Download very simple template
     // ────────────────────────────────────────────────
+
     case 'download_custom_group_template':
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();

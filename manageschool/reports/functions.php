@@ -37,7 +37,8 @@ $school_id = $_SESSION['school_id'] ?? 0;
 $user_id = $_SESSION['user_id'] ?? 0;
 $role_id = $_SESSION['role_id'] ?? 0;
 
-function getGradeAndPointsFunc($conn, $value, $grading_system_id, $use_points = false) {
+function getGradeAndPointsFunc($conn, $value, $grading_system_id, $use_points = false)
+{
     if ($use_points) {
         // Floor the points to a whole number
         $value = floor($value);
@@ -456,21 +457,21 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
                 }
 
                 // Select subjects for calculation
-                $selected_subjects = array_filter($processed_subjects, function($subj) {
+                $selected_subjects = array_filter($processed_subjects, function ($subj) {
                     return $subj['score'] > 0;
                 });
 
                 if ($uses_papers) {
                     // Separate compulsory and elective subjects
-                    $compulsory_subjects = array_filter($processed_subjects, function($subj) {
+                    $compulsory_subjects = array_filter($processed_subjects, function ($subj) {
                         return $subj['type'] === 'compulsory' && $subj['score'] > 0;
                     });
-                    $elective_subjects = array_filter($processed_subjects, function($subj) {
+                    $elective_subjects = array_filter($processed_subjects, function ($subj) {
                         return $subj['type'] === 'elective' && $subj['score'] > 0;
                     });
 
                     // Sort electives by points descending and select top 2
-                    usort($elective_subjects, function($a, $b) {
+                    usort($elective_subjects, function ($a, $b) {
                         return $b['points'] <=> $a['points'];
                     });
                     $top_electives = array_slice($elective_subjects, 0, 2);
@@ -503,7 +504,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             }
 
             // Sort and rank by total_points
-            usort($student_data, function($a, $b) {
+            usort($student_data, function ($a, $b) {
                 return $b['total_points'] <=> $a['total_points'];
             });
 
@@ -529,63 +530,115 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
         // School Grade Analysis Actions
         case 'get_exams_by_year':
             $year = isset($_POST['year']) ? (int)$_POST['year'] : 0;
-            if (empty($year)) {
-                error_log("get_exams_by_year: Year is required");
-                echo json_encode(['status' => 'error', 'message' => 'Year is required']);
+            if ($year < 2000 || $year > 2100) {  // Basic sanity check
+                error_log("get_exams_by_year: Invalid year: $year");
+                echo json_encode(['status' => 'error', 'message' => 'Valid year is required (2000–2100)']);
                 ob_end_flush();
                 exit;
             }
+
             $stmt = $conn->prepare("
-                SELECT DISTINCT exam_name, term
-                FROM exams
-                WHERE school_id = ? AND YEAR(created_at) = ? AND status = 'closed'
-                AND EXISTS (SELECT 1 FROM results r WHERE r.exam_id = exams.exam_id AND r.status = 'confirmed')
-                ORDER BY exam_name
-            ");
+        SELECT DISTINCT 
+            e.exam_id,
+            e.exam_name,
+            e.term,
+            e.grading_system_id,
+            e.min_subjects
+        FROM exams e
+        WHERE e.school_id = ?
+          AND YEAR(e.created_at) = ?
+          AND e.status = 'closed'
+          AND EXISTS (
+              SELECT 1 
+              FROM results r 
+              WHERE r.exam_id = e.exam_id 
+                AND r.status = 'confirmed'
+                AND r.deleted_at IS NULL
+          )
+        ORDER BY e.exam_name ASC, e.term DESC
+    ");
+
             if (!$stmt) {
-                error_log("get_exams_by_year: Failed to prepare query - " . $conn->error);
-                echo json_encode(['status' => 'error', 'message' => 'Failed to prepare query for exams']);
+                error_log("get_exams_by_year: Prepare failed - " . $conn->error);
+                echo json_encode(['status' => 'error', 'message' => 'Database prepare error']);
                 ob_end_flush();
                 exit;
             }
+
             $stmt->bind_param("ii", $school_id, $year);
             $stmt->execute();
-            $exams = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-            error_log("get_exams_by_year: Fetched " . count($exams) . " exams for year=$year, school_id=$school_id");
-            echo json_encode(['status' => 'success', 'exams' => $exams]);
-            break;
+            $result = $stmt->get_result();
 
+            $exams = [];
+            while ($row = $result->fetch_assoc()) {
+                $exams[] = [
+                    'exam_id'           => (int)$row['exam_id'],
+                    'exam_name'         => $row['exam_name'],
+                    'term'              => $row['term'],
+                    'grading_system_id' => (int)$row['grading_system_id'],
+                    'min_subjects'      => (int)$row['min_subjects']
+                ];
+            }
+
+            $stmt->close();
+
+            $count = count($exams);
+            error_log("get_exams_by_year: Fetched $count exams for year=$year, school_id=$school_id");
+
+            echo json_encode([
+                'status' => 'success',
+                'exams'  => $exams,
+                'count'  => $count
+            ]);
+            break;
         case 'get_classes_by_exam':
-            $year = isset($_POST['year']) ? (int)$_POST['year'] : 0;
-            $exam_name = isset($_POST['exam_name']) ? trim($_POST['exam_name']) : '';
-            $term = isset($_POST['term']) ? trim($_POST['term']) : '';
-            if (empty($year) || empty($exam_name) || empty($term)) {
-                error_log("get_classes_by_exam: Year, exam name, and term are required");
-                echo json_encode(['status' => 'error', 'message' => 'Year, exam name, and term are required']);
+            $year    = (int)($_POST['year'] ?? 0);
+            $exam_id = (int)($_POST['exam_id'] ?? 0);
+            $term    = trim($_POST['term'] ?? '');
+
+            if ($year < 2000 || $exam_id <= 0 || empty($term)) {
+                error_log("get_classes_by_exam: Invalid params - year=$year, exam_id=$exam_id, term='$term'");
+                echo json_encode(['status' => 'error', 'message' => 'Year, Exam ID, and Term are required']);
                 ob_end_flush();
                 exit;
             }
+
             $stmt = $conn->prepare("
-                SELECT DISTINCT c.class_id, c.form_name
-                FROM exams e
-                JOIN classes c ON e.class_id = c.class_id
-                WHERE e.school_id = ? AND e.exam_name = ? AND e.term = ? AND YEAR(e.created_at) = ? AND e.status = 'closed'
-                AND EXISTS (SELECT 1 FROM results r WHERE r.exam_id = e.exam_id AND r.status = 'confirmed')
-                ORDER BY c.form_name
-            ");
+        SELECT DISTINCT c.class_id, c.form_name
+        FROM exams e
+        JOIN classes c ON e.class_id = c.class_id
+        WHERE e.school_id = ?
+          AND e.exam_id = ?
+          AND e.term = ?
+          AND YEAR(e.created_at) = ?
+          AND e.status = 'closed'
+          AND EXISTS (
+              SELECT 1 FROM results r 
+              WHERE r.exam_id = e.exam_id AND r.status = 'confirmed' AND r.deleted_at IS NULL
+          )
+        ORDER BY c.form_name
+    ");
+
             if (!$stmt) {
-                error_log("get_classes_by_exam: Failed to prepare query - " . $conn->error);
-                echo json_encode(['status' => 'error', 'message' => 'Failed to prepare query for classes']);
+                error_log("get_classes_by_exam: Prepare failed - " . $conn->error);
+                echo json_encode(['status' => 'error', 'message' => 'Database error']);
                 ob_end_flush();
                 exit;
             }
-            $stmt->bind_param("issi", $school_id, $exam_name, $term, $year);
+
+            $stmt->bind_param("iisi", $school_id, $exam_id, $term, $year);
             $stmt->execute();
             $classes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
-            error_log("get_classes_by_exam: Fetched " . count($classes) . " classes for year=$year, exam_name=$exam_name, term=$term");
-            echo json_encode(['status' => 'success', 'classes' => $classes]);
+
+            $count = count($classes);
+            error_log("get_classes_by_exam: Fetched $count classes for exam_id=$exam_id, year=$year, term=$term, school_id=$school_id");
+
+            echo json_encode([
+                'status'  => 'success',
+                'classes' => $classes,
+                'count'   => $count
+            ]);
             break;
 
         // Report Card and Transcript Actions
@@ -829,23 +882,31 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             echo json_encode(['status' => 'success', 'exams' => $exams]);
             break;
         case 'get_custom_groups_and_exams':
-            // Fetch all custom groups for this school
+            // Fetch custom groups — only those linked to non-CBC (8-4-4) classes
             $stmt = $conn->prepare("
-        SELECT group_id, name
-        FROM custom_groups
-        WHERE school_id = ?
-        ORDER BY name
+        SELECT DISTINCT cg.group_id, cg.name
+        FROM custom_groups cg
+        INNER JOIN classes c ON cg.class_id = c.class_id
+        WHERE cg.school_id = ?
+          AND c.is_cbc = 0
+        ORDER BY cg.name
     ");
             $stmt->bind_param("i", $school_id);
             $stmt->execute();
             $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
 
-            // Fetch all closed exams (you can filter further if needed)
+            // Fetch closed exams (you can add similar filter if you want only non-CBC exams)
             $stmt = $conn->prepare("
         SELECT exam_id, exam_name, term
         FROM exams
-        WHERE school_id = ? AND status = 'closed'
+        WHERE school_id = ? 
+          AND status = 'closed'
+          AND EXISTS (
+              SELECT 1 FROM classes c 
+              WHERE c.class_id = exams.class_id 
+                AND c.is_cbc = 0
+          )
         ORDER BY created_at DESC
     ");
             $stmt->bind_param("i", $school_id);
@@ -860,6 +921,35 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
             ]);
             break;
 
+        case 'get_dormitories':
+            $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
+            // If you want only dorms that have students in this class, join student_dormitory_assignments
+            $stmt = $conn->prepare("
+        SELECT DISTINCT d.dormitory_id, d.name
+        FROM dormitories d
+        WHERE d.school_id = ? AND d.is_active = 1
+        ORDER BY d.name
+    ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $dorms = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'dormitories' => $dorms]);
+            break;
+
+        case 'get_houses':
+            $stmt = $conn->prepare("
+        SELECT house_id, name
+        FROM houses
+        WHERE school_id = ?
+        ORDER BY name
+    ");
+            $stmt->bind_param("i", $school_id);
+            $stmt->execute();
+            $houses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'houses' => $houses]);
+            break;
         case 'get_group_subject_results':
             $group_id = (int)($_POST['group_id'] ?? 0);
             $exam_id  = (int)($_POST['exam_id'] ?? 0);
@@ -996,12 +1086,185 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
                 'total_students' => $total_students
             ]);
             break;
+
+        case 'get_custom_groups_for_class':
+            $class_id = (int)($_POST['class_id'] ?? 0);
+            if (!$class_id) {
+                echo json_encode(['status' => 'error', 'message' => 'Class ID required']);
+                exit;
+            }
+
+            $stmt = $conn->prepare("
+        SELECT group_id, name
+        FROM custom_groups
+        WHERE school_id = ? AND class_id = ?
+        ORDER BY name
+    ");
+            $stmt->bind_param("ii", $school_id, $class_id);
+            $stmt->execute();
+            $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status' => 'success',
+                'groups' => $groups
+            ]);
+            break;
+
+        case 'get_subjects_for_group':
+            $group_id = (int)($_POST['group_id'] ?? 0);
+
+            if ($group_id <= 0) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Invalid or missing group_id'
+                ]);
+                exit;
+            }
+
+            // Verify the group belongs to this school (security)
+            $stmt = $conn->prepare("
+        SELECT 1 
+        FROM custom_groups 
+        WHERE group_id = ? AND school_id = ?
+    ");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            if ($stmt->get_result()->num_rows === 0) {
+                echo json_encode([
+                    'status'  => 'error',
+                    'message' => 'Group not found or access denied'
+                ]);
+                $stmt->close();
+                exit;
+            }
+            $stmt->close();
+
+            // Fetch subjects linked to this group
+            $stmt = $conn->prepare("
+        SELECT 
+            s.subject_id, 
+            s.name
+        FROM custom_group_subjects cgs
+        INNER JOIN subjects s ON cgs.subject_id = s.subject_id
+        WHERE cgs.group_id = ?
+          AND s.school_id = ?
+          AND s.deleted_at IS NULL
+        ORDER BY s.name ASC
+    ");
+            $stmt->bind_param("ii", $group_id, $school_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            echo json_encode([
+                'status'   => 'success',
+                'subjects' => $subjects,
+                'count'    => count($subjects)  // optional: helps frontend know if 0, 1, or many
+            ]);
+            break;
         default:
             error_log("Invalid action received: $action");
             echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
+            break;
+        case 'get_terms_for_year':
+            $year = (int)($_POST['year'] ?? 0);
+            $stmt = $conn->prepare("
+        SELECT DISTINCT term 
+        FROM exams 
+        WHERE school_id = ? AND YEAR(created_at) = ? AND status = 'closed'
+        AND EXISTS (SELECT 1 FROM results r WHERE r.exam_id = exams.exam_id AND r.status = 'confirmed')
+        ORDER BY term DESC
+    ");
+            $stmt->bind_param("ii", $school_id, $year);
+            $stmt->execute();
+            $terms = $stmt->get_result()->fetch_all(MYSQLI_NUM);
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'terms' => array_column($terms, 0)]);
+            break;
+
+        case 'get_exams_for_term_and_year':
+            $year = (int)($_POST['year'] ?? 0);
+            $term = $_POST['term'] ?? '';
+            $stmt = $conn->prepare("
+        SELECT exam_id, exam_name 
+        FROM exams 
+        WHERE school_id = ? AND YEAR(created_at) = ? AND term = ? AND status = 'closed'
+        AND EXISTS (SELECT 1 FROM results r WHERE r.exam_id = exams.exam_id AND r.status = 'confirmed')
+        ORDER BY exam_name
+    ");
+            $stmt->bind_param("iis", $school_id, $year, $term);
+            $stmt->execute();
+            $exams = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'exams' => $exams]);
+            break;
+
+        case 'get_classes_for_term_and_year':
+            $year = (int)($_POST['year'] ?? 0);
+            $term = $_POST['term'] ?? '';
+            $school_id = $_SESSION['school_id'];
+
+            if (!$year || empty($term)) {
+                echo json_encode(['status' => 'error', 'message' => 'Year and term required']);
+                exit;
+            }
+
+            $stmt = $conn->prepare("
+                SELECT DISTINCT c.class_id, c.form_name
+                FROM exams e
+                JOIN exam_aggregates ea ON e.exam_id = ea.exam_id
+                JOIN classes c ON ea.class_id = c.class_id
+                WHERE e.school_id = ?
+                  AND YEAR(e.created_at) = ?
+                  AND e.term = ?
+                  AND e.status = 'closed'
+                  AND c.is_cbc = 0
+                ORDER BY c.form_name ASC
+            ");
+            $stmt->bind_param("iis", $school_id, $year, $term);
+            $stmt->execute();
+            $classes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            echo json_encode(['status' => 'success', 'classes' => $classes]);
+            $stmt->close();
+            break;
+        case 'get_exams_for_class_term_year':
+            $year     = (int)($_POST['year'] ?? 0);
+            $term     = $_POST['term'] ?? '';
+            $class_id = (int)($_POST['class_id'] ?? 0);
+            $school_id = $_SESSION['school_id'];
+
+            if (!$year || empty($term) || !$class_id) {
+                echo json_encode(['status' => 'error', 'message' => 'Year, Term and Class are required']);
+                exit;
+            }
+
+            $stmt = $conn->prepare("
+                SELECT e.exam_id, e.exam_name
+                FROM exams e
+                WHERE e.school_id = ?
+                  AND YEAR(e.created_at) = ?
+                  AND e.term = ?
+                  AND e.status = 'closed'
+                  AND EXISTS (
+                      SELECT 1 FROM results r 
+                      WHERE r.exam_id = e.exam_id 
+                        AND r.status = 'confirmed'
+                        AND EXISTS (
+                            SELECT 1 FROM students s 
+                            WHERE s.student_id = r.student_id 
+                              AND s.class_id = ?
+                        )
+                  )
+                ORDER BY e.created_at DESC
+            ");
+            $stmt->bind_param("iisi", $school_id, $year, $term, $class_id);
+            $stmt->execute();
+            $exams = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            echo json_encode(['status' => 'success', 'exams' => $exams]);
+            $stmt->close();
             break;
     }
     ob_end_flush();
     exit;
 }
-?>

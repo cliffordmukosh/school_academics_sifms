@@ -137,6 +137,7 @@ $stmt->close();
                                             <?= $house['student_count'] ?> students
                                         </span>
                                     </td>
+
                                     <td>
                                         <button class="btn btn-sm btn-primary me-1 view-house-students"
                                             data-house-id="<?= $house['house_id'] ?>"
@@ -153,7 +154,21 @@ $stmt->close();
                                             data-house-id="<?= $house['house_id'] ?>">
                                             <i class="bi bi-trash"></i>
                                         </button>
+
+                                        <!-- NEW: Export Students to Excel -->
+                                        <?php if ($house['student_count'] > 0): ?>
+                                            <a href="houses/functions.php?action=export_house_students&house_id=<?= $house['house_id'] ?>"
+                                                class="btn btn-sm btn-success ms-1"
+                                                title="Export students list to Excel">
+                                                <i class="bi bi-file-earmark-excel-fill"></i> Export
+                                            </a>
+                                        <?php else: ?>
+                                            <button class="btn btn-sm btn-secondary ms-1" disabled title="No students to export">
+                                                <i class="bi bi-file-earmark-excel"></i> Export
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
+
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

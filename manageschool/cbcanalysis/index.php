@@ -196,23 +196,38 @@ $stmt->close();
                         </div>
                     </div>
                 </div>
+
+                <!-- Custom Group Performance (New for CBC) -->
+                <div class="col-md-3">
+                    <div class="card shadow-sm border-0 h-100 text-center">
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <i class="bi bi-people-fill display-5 text-primary"></i>
+                            <h5 class="mt-3">Custom Group Performance</h5>
+                            <p class="text-muted">View subject grades & aggregates for students in a custom group (CBC only).</p>
+                            <button class="btn btn-primary mt-auto" id="customGroupPerformanceBtn">
+                                <i class="bi bi-graph-up-arrow me-2"></i> View Group Performance
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- View Results Modal -->
+            <!-- View Results Modal (CBC) - with Dorm & House filters -->
             <div class="modal fade" id="resultsModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
+                <div class="modal-dialog modal-xl">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title d-flex align-items-center">
-                                <i class="bi bi-list-ul me-2"></i> Select Form, Term, Exam, and Stream
+                                <i class="bi bi-list-ul me-2"></i> Select Form, Term, Exam + Optional Filters
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <form id="analysisForm" action="cbcanalysis/examreports/meritlist.php" method="get">
+                                <!-- Required fields -->
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
-                                        <label class="form-label">Form</label>
+                                        <label class="form-label">Form <span class="text-danger">*</span></label>
                                         <select class="form-select" id="analysisClassId" name="class_id" required>
                                             <option value="">Select Form</option>
                                             <?php foreach ($classes as $class): ?>
@@ -223,26 +238,54 @@ $stmt->close();
                                         </select>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label">Term</label>
+                                        <label class="form-label">Term <span class="text-danger">*</span></label>
                                         <select class="form-select" id="analysisTerm" name="term" disabled required>
                                             <option value="">Select Term</option>
                                         </select>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label">Exam</label>
+                                        <label class="form-label">Exam <span class="text-danger">*</span></label>
                                         <select class="form-select" id="analysisExamId" name="exam_id" disabled required>
                                             <option value="">Select Exam</option>
                                         </select>
                                     </div>
                                     <div class="col-md-3">
-                                        <label class="form-label">Stream</label>
-                                        <select class="form-select" id="analysisStreamId" name="stream_id" disabled required>
-                                            <option value="">Select Stream</option>
-                                            <option value="0">All Streams</option>
+                                        <label class="form-label">Stream (optional)</label>
+                                        <select class="form-select" id="analysisStreamId" name="stream_id" disabled>
+                                            <option value="">— All Streams —</option>
                                         </select>
                                     </div>
                                 </div>
-                                <button type="submit" class="btn btn-primary" id="loadAnalysisBtn">Load Merit List</button>
+
+                                <!-- Optional Filters: Dormitory + House -->
+                                <div class="row g-3 mb-3 border-top pt-3">
+                                    <div class="col-12">
+                                        <label class="form-label fw-bold text-muted">
+                                            <i class="bi bi-filter-circle me-1"></i> Optional: Filter by Dormitory or House
+                                        </label>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Dormitory</label>
+                                        <select class="form-select" id="analysisDormitoryId" name="dormitory_id" disabled>
+                                            <option value="">— Any / All dorms —</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">House</label>
+                                        <select class="form-select" id="analysisHouseId" name="house_id" disabled>
+                                            <option value="">— Any / All houses —</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info small mt-2">
+                                    <strong>Note:</strong> You can leave Stream, Dormitory, and House empty for whole form results.<br>
+                                    Select only one filter (stream/dorm/house) for best results — multiple selections may be combined.
+                                </div>
+
+                                <button type="submit" class="btn btn-primary w-100 mt-3" id="loadAnalysisBtn">
+                                    <i class="bi bi-list-ol me-2"></i> Load Merit List
+                                </button>
                             </form>
                         </div>
                     </div>
@@ -633,21 +676,22 @@ $stmt->close();
                 </div>
             </div>
 
-            <!-- Score Sheet Modal -->
+            <!-- Score Sheet Modal - CBC version with Stream OR Group support -->
             <div class="modal fade" id="scoreSheetModal" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title d-flex align-items-center">
-                                <i class="bi bi-file-earmark-text me-2"></i> Select Form, Stream, and Subject
+                                <i class="bi bi-file-earmark-text me-2"></i> Generate Score Sheet (CBC)
                             </h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <form id="scoreSheetForm" action="cbcanalysis/examreports/scoresheet.php" method="post">
                                 <div class="row g-3 mb-3">
+                                    <!-- Form -->
                                     <div class="col-md-4">
-                                        <label class="form-label">Form</label>
+                                        <label class="form-label">Form <span class="text-danger">*</span></label>
                                         <select class="form-select" id="scoreSheetClassId" name="class_id" required>
                                             <option value="">Select Form</option>
                                             <?php foreach ($classes as $class): ?>
@@ -657,25 +701,108 @@ $stmt->close();
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
+                                    <!-- Stream -->
                                     <div class="col-md-4">
-                                        <label class="form-label">Stream</label>
-                                        <select class="form-select" id="scoreSheetStreamId" name="stream_id" disabled required>
-                                            <option value="">Select Stream</option>
+                                        <label class="form-label">Stream (optional)</label>
+                                        <select class="form-select" id="scoreSheetStreamId" name="stream_id">
+                                            <option value="">— All Streams in Form —</option>
+                                            <!-- filled by JS -->
                                         </select>
                                     </div>
+                                    <!-- Custom Group -->
                                     <div class="col-md-4">
-                                        <label class="form-label">Subject</label>
-                                        <select class="form-select" id="scoreSheetSubjectId" name="subject_id" disabled required>
-                                            <option value="">Select Subject</option>
+                                        <label class="form-label">Custom Group (optional)</label>
+                                        <select class="form-select" id="scoreSheetGroupId" name="group_id">
+                                            <option value="">— Select Group (alternative) —</option>
+                                            <!-- filled by JS -->
                                         </select>
                                     </div>
                                 </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">
+                                            Subject <span id="subjectRequired" class="text-danger">*</span>
+                                        </label>
+                                        <select class="form-select" id="scoreSheetSubjectId" name="subject_id">
+                                            <option value="">Select Subject</option>
+                                            <!-- filled by JS -->
+                                        </select>
+                                        <small id="groupSubjectNote" class="form-text text-muted d-none">
+                                            Subject is locked because a Custom Group is selected.
+                                        </small>
+                                    </div>
+                                </div>
+
                                 <input type="hidden" name="school_id" value="<?php echo htmlspecialchars($school_id); ?>">
-                                <button type="submit" class="btn btn-primary" id="generateScoreSheetBtn">Generate Score Sheet</button>
+
+                                <button type="submit" class="btn btn-primary w-100" id="generateScoreSheetBtn" disabled>
+                                    Generate Score Sheet
+                                </button>
                             </form>
+
+                            <small class="text-muted d-block mt-3">
+                                Choose <strong>either Stream</strong> or <strong>Custom Group</strong> (not both).<br>
+                                Subject required unless group selected (auto-loads if group has 1 subject).
+                            </small>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Group Performance Modal (CBC) -->
+<div class="modal fade" id="customGroupPerformanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center">
+                    <i class="bi bi-people me-2"></i> Custom Group Performance Analysis (CBC)
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="customGroupPerformanceForm" action="cbcanalysis/examreports/CustomGroupPerformance.php" method="post">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Year <span class="text-danger">*</span></label>
+                            <select class="form-select" id="cgpYear" name="year" required>
+                                <option value="">Select Year</option>
+                                <?php foreach ($years as $year): ?>
+                                    <option value="<?php echo htmlspecialchars($year); ?>"><?php echo htmlspecialchars($year); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Form <span class="text-danger">*</span></label>
+                            <select class="form-select" id="cgpClassId" name="class_id" required>
+                                <option value="">Select Form</option>
+                                <?php foreach ($classes as $class): ?>
+                                    <option value="<?php echo $class['class_id']; ?>">
+                                        <?php echo htmlspecialchars($class['form_name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Exam <span class="text-danger">*</span></label>
+                            <select class="form-select" id="cgpExamId" name="exam_id" disabled required>
+                                <option value="">Select Exam</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Custom Group <span class="text-danger">*</span></label>
+                            <select class="form-select" id="cgpGroupId" name="group_id" disabled required>
+                                <option value="">Select Group</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="generateCustomGroupBtn" disabled>
+                        Generate Group Performance Report
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -831,17 +958,7 @@ $stmt->close();
 
         // Handle Load Analysis button
         // Handle Load Analysis button
-        $('#loadAnalysisBtn').on('click', function(e) {
-            const classId = $('#analysisClassId').val();
-            const term = $('#analysisTerm').val();
-            const examId = $('#analysisExamId').val();
-            const streamId = $('#analysisStreamId').val();
-            if (!classId || !term || !examId || !streamId) {
-                e.preventDefault();
-                alert('Please select form, term, exam, and stream.');
-            }
-            // Let the form submit naturally to meritlist.php
-        });
+
 
         // Print button functionality
         $('#printAnalysisBtn').on('click', function() {
@@ -1323,7 +1440,7 @@ $stmt->close();
         $('#classListClassId').on('change', function() {
             const classId = $(this).val();
 
-            // Reset everything downstream
+            // Reset everything
             $('#classListStreamId')
                 .html('<option value="">Select Stream (optional)</option>')
                 .prop('disabled', true);
@@ -1334,37 +1451,56 @@ $stmt->close();
 
             if (!classId) return;
 
-            // Load streams (same as before)
+            // ────────────── Streams ──────────────
             $.post('cbcanalysis/functions.php', {
                 action: 'get_streams',
                 class_id: classId
             }, function(res) {
+                console.log('Streams response:', res); // ← debug
                 if (res.status === 'success' && res.streams?.length > 0) {
+                    let html = '<option value="">Select Stream (optional)</option>';
                     res.streams.forEach(s => {
-                        $('#classListStreamId').append(
-                            `<option value="${s.stream_id}">${s.stream_name}</option>`
-                        );
+                        html += `<option value="${s.stream_id}">${s.stream_name}</option>`;
                     });
-                    $('#classListStreamId').prop('disabled', false);
+                    $('#classListStreamId').html(html).prop('disabled', false);
+                } else {
+                    $('#classListStreamId').html('<option value="">No streams found</option>').prop('disabled', true);
                 }
-            }, 'json');
+                updateGenerateButton();
+            }, 'json').fail(function(jqXHR, textStatus) {
+                console.error('Streams AJAX failed:', textStatus);
+                $('#classListStreamId').html('<option value="">Error loading streams</option>').prop('disabled', true);
+                updateGenerateButton();
+            });
 
-            // NEW: Load custom groups for this class
+            // ────────────── Custom Groups ──────────────
             $.post('cbcanalysis/functions.php', {
-                action: 'get_custom_groups_for_class', // ← you need to add this action
+                action: 'get_custom_groups_for_class',
                 class_id: classId
             }, function(res) {
-                if (res.status === 'success' && res.groups?.length > 0) {
-                    res.groups.forEach(g => {
-                        $('#classListGroupId').append(
-                            `<option value="${g.group_id}">${g.name}</option>`
-                        );
-                    });
-                    $('#classListGroupId').prop('disabled', false);
-                }
-            }, 'json');
-        });
+                console.log('Custom Groups response:', res); // ← VERY IMPORTANT debug line
 
+                if (res.status === 'success') {
+                    if (res.groups?.length > 0) {
+                        let html = '<option value="">Select Custom Group (optional)</option>';
+                        res.groups.forEach(g => {
+                            html += `<option value="${g.group_id}">${g.name}</option>`;
+                        });
+                        $('#classListGroupId').html(html).prop('disabled', false);
+                    } else {
+                        $('#classListGroupId').html('<option value="">No custom groups found for this form</option>').prop('disabled', true);
+                    }
+                } else {
+                    console.warn('Custom groups failed:', res.message || 'Unknown error');
+                    $('#classListGroupId').html('<option value="">Error loading groups</option>').prop('disabled', true);
+                }
+                updateGenerateButton();
+            }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
+                console.error('Custom Groups AJAX failed:', textStatus, errorThrown);
+                $('#classListGroupId').html('<option value="">Failed to load groups</option>').prop('disabled', true);
+                updateGenerateButton();
+            });
+        });
         // Enable Generate button only when Form + (Stream OR Group) is selected
         function updateGenerateButton() {
             const hasForm = $('#classListClassId').val() !== '';
@@ -1399,62 +1535,295 @@ $stmt->close();
             }
         });
 
-        // Handle Form Selection for score sheet
+        // ─── Score Sheet (CBC) – supports Stream OR Custom Group ───────────────────────────────
         $('#scoreSheetClassId').on('change', function() {
-            const classId = $(this).val();
-            $('#scoreSheetStreamId').html('<option value="">Select Stream</option>').prop('disabled', true);
-            $('#scoreSheetSubjectId').html('<option value="">Select Subject</option>').prop('disabled', true);
-            if (classId) {
-                // Load streams
-                $.post('cbcanalysis/functions.php', {
-                    action: 'get_streams',
-                    class_id: classId
-                }, function(response) {
-                    console.log('Streams Response (Score Sheet):', response);
-                    if (response.status === 'success' && response.streams && response.streams.length > 0) {
-                        response.streams.forEach(stream => {
-                            $('#scoreSheetStreamId').append(`<option value="${stream.stream_id}">${stream.stream_name}</option>`);
-                        });
-                        $('#scoreSheetStreamId').prop('disabled', false);
-                    } else {
-                        alert('No streams found for the selected form.');
-                    }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load streams:', textStatus, errorThrown);
-                    alert('Failed to load streams.');
-                });
+            const classId = $(this).val() || '';
 
-                // Load subjects
-                $.post('cbcanalysis/functions.php', {
-                    action: 'get_subjects_for_class',
-                    class_id: classId
-                }, function(response) {
-                    console.log('Subjects Response (Score Sheet):', response);
-                    if (response.status === 'success' && response.subjects && response.subjects.length > 0) {
-                        response.subjects.forEach(subject => {
-                            $('#scoreSheetSubjectId').append(`<option value="${subject.subject_id}">${subject.name}</option>`);
-                        });
-                        $('#scoreSheetSubjectId').prop('disabled', false);
-                    } else {
-                        alert('No subjects found for the selected form.');
-                    }
-                }, 'json').fail(function(jqXHR, textStatus, errorThrown) {
-                    console.error('Failed to load subjects:', textStatus, errorThrown);
-                    alert('Failed to load subjects.');
-                });
-            }
+            // Reset everything
+            $('#scoreSheetStreamId, #scoreSheetGroupId, #scoreSheetSubjectId')
+                .html('<option value="">Loading...</option>')
+                .prop('disabled', true);
+            $('#generateScoreSheetBtn').prop('disabled', true);
+            $('#subjectRequired').text('*');
+            $('#groupSubjectNote').addClass('d-none');
+
+            if (!classId) return;
+
+            // Load Streams
+            $.post('cbcanalysis/functions.php', {
+                action: 'get_streams',
+                class_id: classId
+            }, function(res) {
+                let html = '<option value="">— All Streams in Form —</option>';
+                if (res.status === 'success' && res.streams?.length) {
+                    res.streams.forEach(s => html += `<option value="${s.stream_id}">${s.stream_name}</option>`);
+                }
+                $('#scoreSheetStreamId').html(html).prop('disabled', false);
+                checkScoreSheetReady();
+            }, 'json');
+
+            // Load Custom Groups
+            $.post('cbcanalysis/functions.php', {
+                action: 'get_custom_groups_for_class',
+                class_id: classId
+            }, function(res) {
+                let html = '<option value="">— Select Group (alternative) —</option>';
+                if (res.status === 'success' && res.groups?.length) {
+                    res.groups.forEach(g => html += `<option value="${g.group_id}">${g.name}</option>`);
+                }
+                $('#scoreSheetGroupId').html(html).prop('disabled', false);
+                checkScoreSheetReady();
+            }, 'json');
+
+            // Load Subjects (manual fallback)
+            $.post('cbcanalysis/functions.php', {
+                action: 'get_subjects_for_class',
+                class_id: classId
+            }, function(res) {
+                let html = '<option value="">Select Subject</option>';
+                if (res.status === 'success' && res.subjects?.length) {
+                    res.subjects.forEach(s => html += `<option value="${s.subject_id}">${s.name}</option>`);
+                }
+                $('#scoreSheetSubjectId').html(html).prop('disabled', false);
+                checkScoreSheetReady();
+            }, 'json');
         });
 
-        // Validate score sheet form before submission
-        $('#scoreSheetForm').on('submit', function(e) {
-            const classId = $('#scoreSheetClassId').val();
-            const streamId = $('#scoreSheetStreamId').val();
-            const subjectId = $('#scoreSheetSubjectId').val();
-            if (!classId || !streamId || !subjectId) {
+        // When Stream or Group changes → mutual exclusivity + group auto-subject
+        $('#scoreSheetStreamId, #scoreSheetGroupId').on('change', function() {
+            const $this = $(this);
+            const other = $this.is('#scoreSheetStreamId') ? '#scoreSheetGroupId' : '#scoreSheetStreamId';
+
+            if ($this.val()) {
+                $(other).prop('disabled', true).val('');
+
+                // Group selected → lock subject + load group's subjects
+                if ($this.is('#scoreSheetGroupId')) {
+                    $('#scoreSheetSubjectId').prop('disabled', true);
+                    $('#subjectRequired').text('');
+                    $('#groupSubjectNote').removeClass('d-none');
+
+                    $.post('cbcanalysis/functions.php', {
+                        action: 'get_subjects_for_group',
+                        group_id: $this.val()
+                    }, function(res) {
+                        if (res.status !== 'success' || !res.subjects?.length) {
+                            $('#scoreSheetSubjectId').html('<option>No subjects in group</option>');
+                            checkScoreSheetReady();
+                            return;
+                        }
+
+                        let html = '<option value="">Select Subject</option>';
+                        res.subjects.forEach(s => {
+                            html += `<option value="${s.subject_id}">${s.name}</option>`;
+                        });
+                        $('#scoreSheetSubjectId').html(html);
+
+                        // Auto-select if exactly ONE subject in group
+                        if (res.subjects.length === 1) {
+                            const singleId = res.subjects[0].subject_id;
+                            $('#scoreSheetSubjectId').val(singleId).trigger('change');
+                        }
+
+                        checkScoreSheetReady();
+                    }, 'json');
+                }
+            } else {
+                // Cleared → re-enable the other
+                $(other).prop('disabled', false);
+                if ($this.is('#scoreSheetGroupId')) {
+                    $('#scoreSheetSubjectId').prop('disabled', false);
+                    $('#subjectRequired').text('*');
+                    $('#groupSubjectNote').addClass('d-none');
+                }
+            }
+
+            checkScoreSheetReady();
+        });
+
+        // Subject change also triggers check
+        $('#scoreSheetSubjectId').on('change', checkScoreSheetReady);
+
+        // ─── Button enabled only when valid ────────────────────────────────────────
+        function checkScoreSheetReady() {
+            const classId = $('#scoreSheetClassId').val()?.trim() || '';
+            const streamId = $('#scoreSheetStreamId').val()?.trim() || '';
+            const groupId = $('#scoreSheetGroupId').val()?.trim() || '';
+            const subjectId = $('#scoreSheetSubjectId').val()?.trim() || '';
+
+            const subjDisabled = $('#scoreSheetSubjectId').prop('disabled');
+
+            const usingGroup = !!groupId;
+            const usingStream = !!streamId && !usingGroup;
+
+            let subjectOk = false;
+
+            if (usingGroup && subjDisabled) {
+                // Group mode: subject should be pre-filled
+                if (subjectId && subjectId !== '' && subjectId !== '0') {
+                    subjectOk = true;
+                } else {
+                    const selectedOpt = $('#scoreSheetSubjectId option:selected');
+                    if (selectedOpt.length === 1) {
+                        const v = selectedOpt.val()?.trim();
+                        subjectOk = (v && v !== '' && v !== '0');
+                    }
+                }
+            } else {
+                // Stream mode: must manually pick subject
+                subjectOk = (subjectId && subjectId !== '' && subjectId !== '0');
+            }
+
+            const isReady = !!classId && (usingStream || usingGroup) && subjectOk;
+
+            $('#generateScoreSheetBtn')
+                .prop('disabled', !isReady)
+                .toggleClass('btn-success', isReady)
+                .toggleClass('btn-secondary', !isReady);
+        }
+    });
+
+    // Show Custom Group Performance modal
+    $('#customGroupPerformanceBtn').on('click', function() {
+        $('#customGroupPerformanceModal').modal('show');
+    });
+
+    // Handle Year + Form change → load Exams → load Groups
+    $('#cgpYear, #cgpClassId').on('change', function() {
+        const year = $('#cgpYear').val();
+        const classId = $('#cgpClassId').val();
+
+        $('#cgpExamId').html('<option value="">Loading...</option>').prop('disabled', true);
+        $('#cgpGroupId').html('<option value="">Loading...</option>').prop('disabled', true);
+        $('#generateCustomGroupBtn').prop('disabled', true);
+
+        if (!year || !classId) return;
+
+        // Load exams (similar to report card logic)
+        $.post('cbcanalysis/functions.php', {
+            action: 'get_exams_for_class_and_year',
+            class_id: classId,
+            year: year
+        }, function(response) {
+            if (response.status === 'success' && response.exams?.length > 0) {
+                $('#cgpExamId').html('<option value="">Select Exam</option>');
+                response.exams.forEach(exam => {
+                    $('#cgpExamId').append(`<option value="${exam.exam_id}">${exam.exam_name}</option>`);
+                });
+                $('#cgpExamId').prop('disabled', false);
+            } else {
+                $('#cgpExamId').html('<option value="">No exams found</option>');
+            }
+        }, 'json');
+
+        // Load custom groups for this class
+        $.post('cbcanalysis/functions.php', {
+            action: 'get_custom_groups_for_class',
+            class_id: classId
+        }, function(res) {
+            if (res.status === 'success' && res.groups?.length > 0) {
+                $('#cgpGroupId').html('<option value="">Select Group</option>');
+                res.groups.forEach(g => {
+                    $('#cgpGroupId').append(`<option value="${g.group_id}">${g.name}</option>`);
+                });
+                $('#cgpGroupId').prop('disabled', false);
+            } else {
+                $('#cgpGroupId').html('<option value="">No groups found</option>');
+            }
+        }, 'json');
+    });
+
+    // Enable Generate button only when all required fields are selected
+    $('#cgpYear, #cgpClassId, #cgpExamId, #cgpGroupId').on('change', function() {
+        const allFilled = $('#cgpYear').val() && $('#cgpClassId').val() && $('#cgpExamId').val() && $('#cgpGroupId').val();
+        $('#generateCustomGroupBtn').prop('disabled', !allFilled);
+    });
+
+    // ────────────────────────────────────────────────
+    // Load Dormitories & Houses when Form is selected (CBC View Results)
+    // ────────────────────────────────────────────────
+    $('#analysisClassId').on('change', function() {
+        const classId = $(this).val();
+
+        // Reset & disable optional filters
+        $('#analysisStreamId, #analysisDormitoryId, #analysisHouseId')
+            .html('<option value="">Loading...</option>')
+            .prop('disabled', true);
+
+        if (!classId) return;
+
+        // 1. Streams (already existing)
+        $.post('cbcanalysis/functions.php', {
+            action: 'get_streams',
+            class_id: classId
+        }, function(res) {
+            let html = '<option value="">— All Streams —</option>';
+            if (res.status === 'success' && res.streams?.length) {
+                res.streams.forEach(s => {
+                    html += `<option value="${s.stream_id}">${s.stream_name}</option>`;
+                });
+            }
+            $('#analysisStreamId').html(html).prop('disabled', false);
+        }, 'json');
+
+        // 2. Dormitories (new - class-specific or school-wide)
+        $.post('cbcanalysis/functions.php', {
+            action: 'get_dormitories',
+            class_id: classId // optional - remove if dorms are school-wide
+        }, function(res) {
+            let html = '<option value="">— Any / All dorms —</option>';
+            if (res.status === 'success' && res.dormitories?.length) {
+                res.dormitories.forEach(d => {
+                    html += `<option value="${d.dormitory_id}">${d.name}</option>`;
+                });
+            }
+            $('#analysisDormitoryId').html(html).prop('disabled', false);
+        }, 'json');
+
+        // 3. Houses (new - school-wide)
+        $.post('cbcanalysis/functions.php', {
+            action: 'get_houses'
+        }, function(res) {
+            let html = '<option value="">— Any / All houses —</option>';
+            if (res.status === 'success' && res.houses?.length) {
+                res.houses.forEach(h => {
+                    html += `<option value="${h.house_id}">${h.name}</option>`;
+                });
+            }
+            $('#analysisHouseId').html(html).prop('disabled', false);
+        }, 'json');
+    });
+
+    // ────────────────────────────────────────────────
+    // Mutual exclusivity: Stream ↔ Dorm ↔ House
+    // ────────────────────────────────────────────────
+    $('#analysisStreamId, #analysisDormitoryId, #analysisHouseId').on('change', function() {
+        const $this = $(this);
+        const val = $this.val();
+        const others = '#analysisStreamId, #analysisDormitoryId, #analysisHouseId';
+
+        if (val) {
+            $(others).not($this).prop('disabled', true).val('');
+        } else {
+            $(others).prop('disabled', false);
+        }
+    });
+
+    // ────────────────────────────────────────────────
+    // Warn if multiple filters are somehow selected
+    // ────────────────────────────────────────────────
+    $('#loadAnalysisBtn').on('click', function(e) {
+        const streamId = $('#analysisStreamId').val();
+        const dormId = $('#analysisDormitoryId').val();
+        const houseId = $('#analysisHouseId').val();
+
+        const filters = [streamId, dormId, houseId].filter(v => v && v !== '');
+        if (filters.length > 1) {
+            if (!confirm("You selected multiple filters (stream/dorm/house).\nOnly one will be prioritized.\nContinue anyway?")) {
                 e.preventDefault();
-                alert('Please select form, stream, and subject.');
+                return false;
             }
-        });
+        }
     });
 </script>
 

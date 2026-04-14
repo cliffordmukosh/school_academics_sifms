@@ -5,20 +5,22 @@ require __DIR__ . '/../../../connection/db.php';
 
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['school_id']) || !isset($_SESSION['role_id'])) {
-    header("Location: ../../../login.php");
-    exit;
+  header("Location: ../../../login.php");
+  exit;
 }
 
 $school_id = $_SESSION['school_id'];
 
 // Get parameters from GET
-$class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
-$term = isset($_GET['term']) ? trim($_GET['term']) : '';
-$exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 0;
-$stream_id = isset($_GET['stream_id']) ? (int)$_GET['stream_id'] : 0;
+$class_id     = isset($_GET['class_id'])     ? (int)$_GET['class_id']     : 0;
+$term         = isset($_GET['term'])         ? trim($_GET['term'])         : '';
+$exam_id      = isset($_GET['exam_id'])      ? (int)$_GET['exam_id']      : 0;
+$stream_id    = isset($_GET['stream_id'])    ? (int)$_GET['stream_id']    : 0;
+$dormitory_id = isset($_GET['dormitory_id']) ? (int)$_GET['dormitory_id'] : 0;
+$house_id     = isset($_GET['house_id'])     ? (int)$_GET['house_id']     : 0;
 
 if (empty($class_id) || empty($term) || empty($exam_id)) {
-    die('Invalid parameters. Please select Form, Term, Exam, and Stream.');
+  die('Invalid parameters. Please select Form, Term and Exam.');
 }
 
 // Fetch school details
@@ -31,10 +33,10 @@ $stmt->close();
 // Process school logo path
 $school_logo = $school['logo'] ?? '';
 if (empty($school_logo)) {
-    $school_logo = 'https://academics.sifms.co.ke/manageschool/logos/school-logo.png';
+  $school_logo = 'https://academics.sifms.co.ke/manageschool/logos/school-logo.png';
 } elseif (strpos($school_logo, 'http') !== 0) {
-    // Normalize to correct logo directory
-    $school_logo = 'https://academics.sifms.co.ke/manageschool/logos/' . basename($school_logo);
+  // Normalize to correct logo directory
+  $school_logo = 'https://academics.sifms.co.ke/manageschool/logos/' . basename($school_logo);
 }
 
 // Fetch class name
@@ -57,18 +59,18 @@ $stmt->close();
 // Fetch stream name if specific stream
 $stream_name = 'All Streams';
 if ($stream_id !== 0) {
-    $stmt = $conn->prepare("SELECT stream_name FROM streams WHERE stream_id = ? AND school_id = ?");
-    $stmt->bind_param("ii", $stream_id, $school_id);
-    $stmt->execute();
-    $stream = $stmt->get_result()->fetch_assoc();
-    $stream_name = $stream ? $stream['stream_name'] : 'Unknown Stream';
-    $stmt->close();
+  $stmt = $conn->prepare("SELECT stream_name FROM streams WHERE stream_id = ? AND school_id = ?");
+  $stmt->bind_param("ii", $stream_id, $school_id);
+  $stmt->execute();
+  $stream = $stmt->get_result()->fetch_assoc();
+  $stream_name = $stream ? $stream['stream_name'] : 'Unknown Stream';
+  $stmt->close();
 }
 
 // Fetch aggregates
 if ($stream_id === 0) {
-    // All streams: class-wide merit list
-    $stmt = $conn->prepare("
+  // All streams: class-wide merit list
+  $stmt = $conn->prepare("
         SELECT ea.position_class, ea.position_stream, ea.total_score, ea.mean_score, ea.mean_grade, ea.total_points,
                s.admission_no, s.full_name, st.stream_name
         FROM exam_aggregates ea
@@ -77,10 +79,10 @@ if ($stream_id === 0) {
         WHERE ea.exam_id = ? AND ea.class_id = ? AND ea.school_id = ? AND ea.term = ? AND ea.year = ?
         ORDER BY ea.position_class ASC
     ");
-    $stmt->bind_param("iiisi", $exam_id, $class_id, $school_id, $term, $year);
+  $stmt->bind_param("iiisi", $exam_id, $class_id, $school_id, $term, $year);
 } else {
-    // Specific stream: stream merit list
-    $stmt = $conn->prepare("
+  // Specific stream: stream merit list
+  $stmt = $conn->prepare("
         SELECT ea.position_class, ea.position_stream, ea.total_score, ea.mean_score, ea.mean_grade, ea.total_points,
                s.admission_no, s.full_name, st.stream_name
         FROM exam_aggregates ea
@@ -89,7 +91,7 @@ if ($stream_id === 0) {
         WHERE ea.exam_id = ? AND ea.class_id = ? AND ea.stream_id = ? AND ea.school_id = ? AND ea.term = ? AND ea.year = ?
         ORDER BY ea.position_stream ASC
     ");
-    $stmt->bind_param("iiiisi", $exam_id, $class_id, $stream_id, $school_id, $term, $year);
+  $stmt->bind_param("iiiisi", $exam_id, $class_id, $stream_id, $school_id, $term, $year);
 }
 $stmt->execute();
 $aggregates = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -107,7 +109,7 @@ $stmt->close();
     background: #fff;
     padding: 12px 15px;
     border-radius: 6px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     font-size: 12px;
   }
 
@@ -175,6 +177,7 @@ $stmt->close();
   .modal-loader .modal-content {
     text-align: center;
   }
+
   .loader-spinner {
     border: 4px solid #f3f3f3;
     border-top: 4px solid #0d6efd;
@@ -184,9 +187,15 @@ $stmt->close();
     animation: spin 1s linear infinite;
     margin: 20px auto;
   }
+
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   @media print {
@@ -195,6 +204,7 @@ $stmt->close();
       margin: 0;
       font-size: 12px;
     }
+
     .meritlist_container {
       box-shadow: none;
       border-radius: 0;
@@ -202,6 +212,7 @@ $stmt->close();
       padding: 10mm;
       margin: 0;
     }
+
     .no-print {
       display: none !important;
     }
@@ -230,8 +241,8 @@ $stmt->close();
 ">
   <!-- Left: School Logo -->
   <div style="display: flex; align-items: center; gap: 10px;">
-    <img src="<?php echo htmlspecialchars($school_logo); ?>" alt="School Logo" 
-         style="height: 50px; width: auto; object-fit: contain; border-radius: 5px;">
+    <img src="<?php echo htmlspecialchars($school_logo); ?>" alt="School Logo"
+      style="height: 50px; width: auto; object-fit: contain; border-radius: 5px;">
     <span style="font-size: 18px; font-weight: bold;">
       <?php echo htmlspecialchars($school['name'] ?? 'KEILA HIGH SCHOOL'); ?>
     </span>
@@ -245,21 +256,21 @@ $stmt->close();
   <!-- Right: Buttons -->
   <div style="display: flex; gap: 8px; align-items: center;">
     <button style="background-color: #ff6b6b; border: none; padding: 6px 12px; border-radius: 5px; color: #fff; cursor: pointer; font-size: 12px;"
-            onmouseover="this.style.backgroundColor='#e55b5b'" 
-            onmouseout="this.style.backgroundColor='#ff6b6b'" 
-            onclick="if (document.referrer) { window.location = document.referrer; } else { history.back(); location.reload(); }">
+      onmouseover="this.style.backgroundColor='#e55b5b'"
+      onmouseout="this.style.backgroundColor='#ff6b6b'"
+      onclick="if (document.referrer) { window.location = document.referrer; } else { history.back(); location.reload(); }">
       <i class="fas fa-arrow-left"></i> Back
     </button>
 
     <button style="background-color: #007bff; border: none; padding: 6px 12px; border-radius: 5px; color: #fff; cursor: pointer; font-size: 12px;"
-            onmouseover="this.style.backgroundColor='#0069d9'" onmouseout="this.style.backgroundColor='#007bff'" 
-            onclick="printReport()">
+      onmouseover="this.style.backgroundColor='#0069d9'" onmouseout="this.style.backgroundColor='#007bff'"
+      onclick="printReport()">
       <i class="fas fa-print"></i> Print Report
     </button>
-    
+
     <button style="background-color: #20c997; border: none; padding: 6px 12px; border-radius: 5px; color: #fff; cursor: pointer; font-size: 12px;"
-            onmouseover="this.style.backgroundColor='#1aa179'" onmouseout="this.style.backgroundColor='#20c997'" 
-            onclick="downloadReport()">
+      onmouseover="this.style.backgroundColor='#1aa179'" onmouseout="this.style.backgroundColor='#20c997'"
+      onclick="downloadReport()">
       <i class="fas fa-file-download"></i> Download Report
     </button>
   </div>
@@ -267,121 +278,131 @@ $stmt->close();
 
 <!-- Download Modal -->
 <div class="modal fade modal-loader" id="downloadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body">
-                <div class="loader-spinner"></div>
-                <p>Downloading the report...</p>
-            </div>
-        </div>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="loader-spinner"></div>
+        <p>Downloading the report...</p>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="meritlist_container">
-    <!-- Header -->
-    <div class="meritlist_header">
-        <img src="<?php echo htmlspecialchars($school_logo); ?>" alt="Logo" /><br />
-        <h2 class="meritlist_h2"><?php echo htmlspecialchars($school['name'] ?? 'KEILA HIGH SCHOOL'); ?></h2>
-        <p class="mb-0 fw-bold">Merit List</p>
-        <p class="mb-0"><?php echo htmlspecialchars($class_name . ' - ' . $stream_name . ' - ' . $exam_name . ' (' . $term . ' ' . $year . ')'); ?></p>
-    </div>
+  <!-- Header -->
+  <div class="meritlist_header">
+    <img src="<?php echo htmlspecialchars($school_logo); ?>" alt="Logo" /><br />
+    <h2 class="meritlist_h2"><?php echo htmlspecialchars($school['name'] ?? 'KEILA HIGH SCHOOL'); ?></h2>
+    <p class="mb-0 fw-bold">Merit List</p>
+    <p class="mb-0"><?php echo htmlspecialchars($class_name . ' - ' . $stream_name . ' - ' . $exam_name . ' (' . $term . ' ' . $year . ')'); ?></p>
+  </div>
 
-    <!-- Merit List Table -->
-    <table class="table table-bordered table-sm text-center align-middle mb-2 meritlist_table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Adm No</th>
-                <th>Student Name</th>
-                <?php if ($stream_id === 0): ?>
-                    <th>Stream</th>
-                <?php endif; ?>
-                <th>Total Score</th>
-                <th>Mean Score</th>
-                <th>Mean Grade</th>
-                <th>Total Points</th>
-                <th>Class Position</th>
-                <th>Stream Position</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (empty($aggregates)): ?>
-                <tr>
-                    <td colspan="<?php echo ($stream_id === 0 ? 10 : 9); ?>" class="text-center">No data available</td>
-                </tr>
-            <?php else: ?>
-                <?php foreach ($aggregates as $index => $agg): ?>
-                    <tr>
-                        <td><?php echo $index + 1; ?></td>
-                        <td><?php echo htmlspecialchars($agg['admission_no']); ?></td>
-                        <td><?php echo htmlspecialchars($agg['full_name']); ?></td>
-                        <?php if ($stream_id === 0): ?>
-                            <td><?php echo htmlspecialchars($agg['stream_name']); ?></td>
-                        <?php endif; ?>
-                        <td><?php echo htmlspecialchars(number_format($agg['total_score'], 2)); ?></td>
-                        <td><?php echo htmlspecialchars(number_format($agg['mean_score'], 2)); ?></td>
-                        <td><?php echo htmlspecialchars($agg['mean_grade']); ?></td>
-                        <td><?php echo htmlspecialchars(number_format($agg['total_points'], 2)); ?></td>
-                        <td><?php echo htmlspecialchars($agg['position_class']); ?></td>
-                        <td><?php echo htmlspecialchars($agg['position_stream']); ?></td>
-                    </tr>
-                <?php endforeach; ?>
+  <!-- Merit List Table -->
+  <table class="table table-bordered table-sm text-center align-middle mb-2 meritlist_table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Adm No</th>
+        <th>Student Name</th>
+        <?php if ($stream_id === 0): ?>
+          <th>Stream</th>
+        <?php endif; ?>
+        <th>Total Score</th>
+        <th>Mean Score</th>
+        <th>Mean Grade</th>
+        <th>Total Points</th>
+        <th>Class Position</th>
+        <th>Stream Position</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php if (empty($aggregates)): ?>
+        <tr>
+          <td colspan="<?php echo ($stream_id === 0 ? 10 : 9); ?>" class="text-center">No data available</td>
+        </tr>
+      <?php else: ?>
+        <?php foreach ($aggregates as $index => $agg): ?>
+          <tr>
+            <td><?php echo $index + 1; ?></td>
+            <td><?php echo htmlspecialchars($agg['admission_no']); ?></td>
+            <td><?php echo htmlspecialchars($agg['full_name']); ?></td>
+            <?php if ($stream_id === 0): ?>
+              <td><?php echo htmlspecialchars($agg['stream_name']); ?></td>
             <?php endif; ?>
-        </tbody>
-    </table>
+            <td><?php echo htmlspecialchars(number_format($agg['total_score'], 2)); ?></td>
+            <td><?php echo htmlspecialchars(number_format($agg['mean_score'], 2)); ?></td>
+            <td><?php echo htmlspecialchars($agg['mean_grade']); ?></td>
+            <td><?php echo htmlspecialchars(number_format($agg['total_points'], 2)); ?></td>
+            <td><?php echo htmlspecialchars($agg['position_class']); ?></td>
+            <td><?php echo htmlspecialchars($agg['position_stream']); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </tbody>
+  </table>
 
-    <!-- Footer Signatures -->
-    <div class="footer-signatures">
-        <div>
-            <p><strong>PREPARED BY</strong></p>
-            <p>SIGN: <span class="signature-line"></span> DATED: <span class="signature-line"></span></p>
-            <p class="title">DEPUTY PRINCIPAL (ACADEMICS)</p>
-        </div>
-        <div>
-            <p><strong>APPROVED BY</strong></p>
-            <p>SIGN: <span class="signature-line"></span> DATED: <span class="signature-line"></span></p>
-            <p class="title">PRINCIPAL</p>
-        </div>
+  <!-- Footer Signatures -->
+  <div class="footer-signatures">
+    <div>
+      <p><strong>PREPARED BY</strong></p>
+      <p>SIGN: <span class="signature-line"></span> DATED: <span class="signature-line"></span></p>
+      <p class="title">DEPUTY PRINCIPAL (ACADEMICS)</p>
     </div>
+    <div>
+      <p><strong>APPROVED BY</strong></p>
+      <p>SIGN: <span class="signature-line"></span> DATED: <span class="signature-line"></span></p>
+      <p class="title">PRINCIPAL</p>
+    </div>
+  </div>
 </div>
 
 <script>
-function printReport() {
+  function printReport() {
     window.print();
-}
+  }
 
-function downloadReport() {
+  function downloadReport() {
     const container = document.querySelector('.meritlist_container');
     if (!container) {
-        alert('No report available to download.');
-        return;
+      alert('No report available to download.');
+      return;
     }
 
     // Show the modal
     const modal = new bootstrap.Modal(document.getElementById('downloadModal'), {
-        backdrop: 'static',
-        keyboard: false
+      backdrop: 'static',
+      keyboard: false
     });
     modal.show();
 
     const opt = {
-        margin: 10,
-        filename: '<?php echo htmlspecialchars($class_name . '_' . $stream_name . '_' . $exam_name . '_' . $term . '_' . $year); ?>.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      margin: 10,
+      filename: '<?php echo htmlspecialchars($class_name . '_' . $stream_name . '_' . $exam_name . '_' . $term . '_' . $year); ?>.pdf',
+      image: {
+        type: 'jpeg',
+        quality: 0.98
+      },
+      html2canvas: {
+        scale: 2,
+        useCORS: true
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait'
+      }
     };
 
     const clone = container.cloneNode(true);
     clone.querySelectorAll('.no-print').forEach(el => el.remove());
 
     html2pdf().set(opt).from(clone).save().then(() => {
-        clone.remove();
-        modal.hide();
+      clone.remove();
+      modal.hide();
     }).catch(err => {
-        console.error('PDF generation failed:', err);
-        modal.hide();
-        alert('Failed to generate PDF. Please try again.');
+      console.error('PDF generation failed:', err);
+      modal.hide();
+      alert('Failed to generate PDF. Please try again.');
     });
-}
+  }
 </script>

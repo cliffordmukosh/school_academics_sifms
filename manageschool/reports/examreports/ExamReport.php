@@ -72,27 +72,50 @@ if ($student_id > 0) {
     $stmt->close();
     $class_name = $class_result['form_name'] ?? 'Unknown Class';
 
-    // Fetch all students in class/stream
+    // Fetch students sorted by Position (Position 1 first)
     if ($stream_id > 0) {
+        // Specific Stream → Sort by stream_position
         $stmt = $conn->prepare("
-            SELECT s.student_id, s.full_name, s.admission_no, s.profile_picture, s.gender,
-                   COALESCE(str.stream_name, '') AS stream_name
+            SELECT 
+                s.student_id, 
+                s.full_name, 
+                s.admission_no, 
+                s.profile_picture, 
+                s.gender,
+                COALESCE(str.stream_name, '') AS stream_name,
+                COALESCE(ea.position_stream, 999) AS position_for_sort
             FROM students s
             JOIN streams str ON s.stream_id = str.stream_id
-            WHERE s.class_id = ? AND s.stream_id = ? AND s.school_id = ?
-            ORDER BY s.full_name
+            LEFT JOIN exam_aggregates ea 
+                ON ea.student_id = s.student_id 
+               AND ea.exam_id = ?
+            WHERE s.class_id = ? 
+              AND s.stream_id = ? 
+              AND s.school_id = ?
+            ORDER BY position_for_sort ASC, s.full_name ASC
         ");
-        $stmt->bind_param("iii", $class_id, $stream_id, $school_id);
+        $stmt->bind_param("iiii", $exam_id, $class_id, $stream_id, $school_id);
     } else {
+        // Whole Class → Sort by class_position
         $stmt = $conn->prepare("
-            SELECT s.student_id, s.full_name, s.admission_no, s.profile_picture, s.gender,
-                   COALESCE(str.stream_name, '') AS stream_name
+            SELECT 
+                s.student_id, 
+                s.full_name, 
+                s.admission_no, 
+                s.profile_picture, 
+                s.gender,
+                COALESCE(str.stream_name, '') AS stream_name,
+                COALESCE(ea.position_class, 999) AS position_for_sort
             FROM students s
             LEFT JOIN streams str ON s.stream_id = str.stream_id
-            WHERE s.class_id = ? AND s.school_id = ?
-            ORDER BY s.full_name
+            LEFT JOIN exam_aggregates ea 
+                ON ea.student_id = s.student_id 
+               AND ea.exam_id = ?
+            WHERE s.class_id = ? 
+              AND s.school_id = ?
+            ORDER BY position_for_sort ASC, s.full_name ASC
         ");
-        $stmt->bind_param("ii", $class_id, $school_id);
+        $stmt->bind_param("iii", $exam_id, $class_id, $school_id);
     }
     $stmt->execute();
     $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -180,9 +203,14 @@ $stmt->bind_param("iii", $exam_id, $class_id, $school_id);
 $stmt->execute();
 $class_stats = $stmt->get_result()->fetch_assoc();
 $stmt->close();
+
 $class_mean_raw = $class_stats['class_mean'] ?? 0;
 $class_mean = $class_mean_raw > 0 ? number_format($class_mean_raw, 2) : 'N/A';
-$class_grade = $class_mean_raw > 0 ? getGrade($conn, floor($class_mean_raw + 0.5), $exam['grading_system_id']) : 'N/A';
+
+// Keep display as 39.94 but use floor for grading (39.94 → 39)
+$class_grade = $class_mean_raw > 0
+    ? getGrade($conn, floor($class_mean_raw), $exam['grading_system_id'])
+    : 'N/A';
 
 function getGrade($conn, $score, $grading_system_id) {
     $stmt = $conn->prepare("
@@ -286,10 +314,14 @@ foreach ($students as $student) {
     $stream_stats = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     $stream_student_count = $stream_stats['stream_count'] ?? 1;
-    $stream_mean_raw = $stream_stats['stream_mean'] ?? 0;
-    $stream_mean = $stream_mean_raw > 0 ? number_format($stream_mean_raw, 2) : 'N/A';
-    $stream_grade = $stream_mean_raw > 0 ? getGrade($conn, floor($stream_mean_raw + 0.5), $exam['grading_system_id']) : 'N/A';
 
+        $stream_mean_raw = $stream_stats['stream_mean'] ?? 0;
+        $stream_mean = $stream_mean_raw > 0 ? number_format($stream_mean_raw, 2) : 'N/A';
+
+        // Keep display as 39.94 but use floor for grading (39.94 → 39)
+        $stream_grade = $stream_mean_raw > 0
+            ? getGrade($conn, floor($stream_mean_raw), $exam['grading_system_id'])
+            : 'N/A';
     // Subject results
     $stmt = $conn->prepare("
         SELECT esa.*, s.name AS subject_name

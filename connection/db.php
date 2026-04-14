@@ -1,9 +1,12 @@
 <?php
 $host = "localhost";   
 $user = "root";        
-$pass = "";   
-$port = 3309;         
-$db   = "schoolacademics";   
+$pass = "";
+$port = 3309;
+$db   = "demoschooldb";
+// $db   = "test_schoolsys";
+// $db   = "schoolacademics";
+
 
 $conn = new mysqli($host, $user, $pass, $db, $port);
 

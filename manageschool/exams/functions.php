@@ -1063,92 +1063,99 @@ switch ($action) {
 
     case 'get_students':
         if (!hasPermission($conn, $user_id, $role_id, 'view_exams', $school_id)) {
-            echo json_encode(['status' => 'error', 'message' => 'Permission denied: view_exams']);
-            ob_end_flush();
+            echo json_encode(['status' => 'error', 'message' => 'Permission denied']);
             exit;
         }
 
-        $exam_id = isset($_POST['exam_id']) ? (int)$_POST['exam_id'] : 0;
-        $class_id = isset($_POST['class_id']) ? (int)$_POST['class_id'] : 0;
-        $stream_id = isset($_POST['stream_id']) ? (int)$_POST['stream_id'] : null;
+        $exam_id    = isset($_POST['exam_id'])    ? (int)$_POST['exam_id']    : 0;
+        $class_id   = isset($_POST['class_id'])   ? (int)$_POST['class_id']   : 0;
+        $stream_id  = isset($_POST['stream_id'])  ? (int)$_POST['stream_id']  : null;
         $student_id = isset($_POST['student_id']) ? (int)$_POST['student_id'] : null;
+        $group_id   = isset($_POST['group_id'])   ? (int)$_POST['group_id']   : null;
 
         if (empty($exam_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Exam ID is required']);
-            ob_end_flush();
             exit;
         }
 
-        // Fetch exam class
-        $stmt = $conn->prepare("SELECT class_id FROM exams WHERE exam_id = ? AND school_id = ?");
-        if (!$stmt) {
-            echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $conn->error]);
-            ob_end_flush();
-            exit;
-        }
-        $stmt->bind_param("ii", $exam_id, $school_id);
-        $stmt->execute();
-        $exam = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if (!$exam) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid exam']);
-            ob_end_flush();
-            exit;
+        // Get exam class_id if not provided
+        if (!$class_id) {
+            $stmt = $conn->prepare("SELECT class_id FROM exams WHERE exam_id = ? AND school_id = ?");
+            $stmt->bind_param("ii", $exam_id, $school_id);
+            $stmt->execute();
+            $exam = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$exam) {
+                echo json_encode(['status' => 'error', 'message' => 'Exam not found']);
+                exit;
+            }
+            $class_id = $exam['class_id'];
         }
 
         $query = "
-            SELECT s.student_id, s.full_name, s.class_id, s.stream_id
-            FROM students s
-            WHERE s.class_id = ? AND s.school_id = ?
-        ";
-        $params = [$exam['class_id'], $school_id];
-        $types = "ii";
+        SELECT s.student_id, s.admission_no, s.full_name, s.stream_id
+        FROM students s
+        WHERE s.school_id = ? AND s.class_id = ? AND s.deleted_at IS NULL
+    ";
+        $params = [$school_id, $class_id];
+        $types  = "ii";
 
-        if ($stream_id) {
+        if ($stream_id !== null) {
             $query .= " AND s.stream_id = ?";
             $params[] = $stream_id;
             $types .= "i";
         }
 
-        if ($student_id) {
+        if ($student_id !== null) {
             $query .= " AND s.student_id = ?";
             $params[] = $student_id;
             $types .= "i";
         }
 
-        $stmt = $conn->prepare($query);
-        if (!$stmt) {
-            echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $conn->error]);
-            ob_end_flush();
-            exit;
+        if ($group_id !== null) {
+            $query = "
+            SELECT s.student_id, s.admission_no, s.full_name, s.stream_id
+            FROM custom_group_students cgs
+            JOIN students s ON cgs.student_id = s.student_id
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ? 
+              AND s.class_id = ?
+              AND s.deleted_at IS NULL
+            ORDER BY s.admission_no ASC, s.full_name ASC
+        ";
+            $params = [$group_id, $school_id, $class_id];
+            $types  = "iii";
+        } else {
+            $query .= " ORDER BY s.admission_no ASC, s.full_name ASC";
         }
+
+        $stmt = $conn->prepare($query);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        // Fetch existing results for these students
+        if (empty($students)) {
+            echo json_encode(['status' => 'success', 'students' => []]);
+            exit;
+        }
+
+        // Fetch existing results (same as before)
         foreach ($students as &$student) {
             $stmt = $conn->prepare("
-                SELECT subject_id, paper_id, score
-                FROM results
-                WHERE exam_id = ? AND student_id = ?
-            ");
-            if (!$stmt) {
-                echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $conn->error]);
-                ob_end_flush();
-                exit;
-            }
+            SELECT subject_id, paper_id, score
+            FROM results
+            WHERE exam_id = ? AND student_id = ?
+        ");
             $stmt->bind_param("ii", $exam_id, $student['student_id']);
             $stmt->execute();
             $results = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
 
             $student['results'] = [];
-            foreach ($results as $result) {
-                $paper_id = $result['paper_id'] ? $result['paper_id'] : 'null';
-                $student['results'][$result['subject_id']][$paper_id] = ['score' => $result['score']];
+            foreach ($results as $r) {
+                $paper = $r['paper_id'] ? $r['paper_id'] : 'null';
+                $student['results'][$r['subject_id']][$paper] = ['score' => $r['score']];
             }
         }
 
@@ -1159,7 +1166,7 @@ switch ($action) {
         $subject_ids = isset($_POST['subject_ids']) ? trim($_POST['subject_ids']) : '';
         $results = isset($_POST['results']) ? $_POST['results'] : [];
 
-        // Fixed: Get scope from form data
+        // Get scope from form data
         $scope = isset($_POST['scope']) ? trim($_POST['scope']) : '';
 
         $school_id = $_SESSION['school_id'];
@@ -1172,8 +1179,9 @@ switch ($action) {
             exit;
         }
 
-        // Validate scope early
-        if (!in_array($scope, ['class', 'stream', 'student'])) {
+        // Validate scope early - includes custom_group
+        $valid_scopes = ['class', 'stream', 'student', 'custom_group'];
+        if (empty($scope) || !in_array($scope, $valid_scopes)) {
             echo json_encode(['status' => 'error', 'message' => 'Invalid or missing scope value']);
             ob_end_flush();
             exit;
@@ -1193,8 +1201,9 @@ switch ($action) {
             exit;
         }
 
-        if (empty($exam_id) || empty($subject_ids) || empty($results)) {
-            echo json_encode(['status' => 'error', 'message' => 'Exam ID, subject IDs, and results are required']);
+        // Basic required fields
+        if (empty($exam_id) || empty($results)) {
+            echo json_encode(['status' => 'error', 'message' => 'Exam ID and results data are required']);
             ob_end_flush();
             exit;
         }
@@ -1215,26 +1224,75 @@ switch ($action) {
         $class_id = $exam['class_id'];
         $grading_system_id = $exam['grading_system_id'];
 
-        // Validate subject_ids
-        $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
-        if (empty($subject_id_array)) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
-            ob_end_flush();
-            exit;
-        }
+        // ── Load subjects dynamically based on scope ──
+        $valid_subjects = [];
 
-        $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
-        $stmt = $conn->prepare("
-        SELECT es.subject_id, es.use_papers, s.name 
-        FROM exam_subjects es 
-        JOIN subjects s ON es.subject_id = s.subject_id 
-        WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)
-    ");
-        $params = array_merge([$exam_id], $subject_id_array);
-        $stmt->bind_param(str_repeat('i', count($params)), ...$params);
-        $stmt->execute();
-        $valid_subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
+        if ($scope === 'custom_group') {
+            $group_id = isset($_POST['group_id']) ? (int)$_POST['group_id'] : 0;
+            if (!$group_id) {
+                echo json_encode(['status' => 'error', 'message' => 'Group ID is required for custom group scope']);
+                ob_end_flush();
+                exit;
+            }
+
+            // Fetch subjects from custom group (same logic as get_custom_group_data)
+            $stmt = $conn->prepare("
+            SELECT 
+                s.subject_id, 
+                s.name, 
+                COALESCE(cs.use_papers, 0) AS use_papers
+            FROM custom_group_subjects cgs
+            JOIN subjects s ON cgs.subject_id = s.subject_id
+            LEFT JOIN class_subjects cs 
+                   ON cs.subject_id = s.subject_id 
+                  AND cs.class_id = ?
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ?
+        ");
+            $stmt->bind_param("iii", $class_id, $group_id, $school_id);
+            $stmt->execute();
+            $valid_subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($valid_subjects)) {
+                echo json_encode(['status' => 'error', 'message' => 'No subjects found in this custom group']);
+                ob_end_flush();
+                exit;
+            }
+        } else {
+            // Normal scopes require subject_ids
+            if (empty($subject_ids)) {
+                echo json_encode(['status' => 'error', 'message' => 'Subject IDs are required for this scope']);
+                ob_end_flush();
+                exit;
+            }
+
+            $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
+            if (empty($subject_id_array)) {
+                echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
+                ob_end_flush();
+                exit;
+            }
+
+            $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
+            $stmt = $conn->prepare("
+            SELECT es.subject_id, es.use_papers, s.name 
+            FROM exam_subjects es 
+            JOIN subjects s ON es.subject_id = s.subject_id 
+            WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)
+        ");
+            $params = array_merge([$exam_id], $subject_id_array);
+            $stmt->bind_param(str_repeat('i', count($params)), ...$params);
+            $stmt->execute();
+            $valid_subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (count($valid_subjects) !== count($subject_id_array)) {
+                echo json_encode(['status' => 'error', 'message' => 'One or more subject IDs are not associated with this exam']);
+                ob_end_flush();
+                exit;
+            }
+        }
 
         // Restrict teachers to only their assigned subjects/class/stream
         if ($_SESSION['role_name'] === 'Teacher') {
@@ -1252,12 +1310,6 @@ switch ($action) {
                 ob_end_flush();
                 exit;
             }
-        }
-
-        if (count($valid_subjects) !== count($subject_id_array)) {
-            echo json_encode(['status' => 'error', 'message' => 'One or more subject IDs are not associated with this exam']);
-            ob_end_flush();
-            exit;
         }
 
         // Fetch papers for subjects that use them
@@ -1288,12 +1340,45 @@ switch ($action) {
             }
         }
 
+        // ── Handle custom_group student validation ──
+        $allowed_student_ids = [];
+        if ($scope === 'custom_group') {
+            $group_id = (int)($_POST['group_id'] ?? 0);
+            $stmt = $conn->prepare("
+            SELECT s.student_id
+            FROM custom_group_students cgs
+            JOIN students s ON cgs.student_id = s.student_id
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ? 
+              AND s.class_id = ?
+              AND s.deleted_at IS NULL
+        ");
+            $stmt->bind_param("iii", $group_id, $school_id, $class_id);
+            $stmt->execute();
+            $group_students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($group_students)) {
+                echo json_encode(['status' => 'error', 'message' => 'No students found in this custom group']);
+                ob_end_flush();
+                exit;
+            }
+
+            $allowed_student_ids = array_column($group_students, 'student_id');
+        }
+
         // Process all results inside transaction
         $errors = [];
         $conn->begin_transaction();
 
         try {
             foreach ($results as $student_id => $subjects_data) {
+                // Security: only allow students from the selected scope/group
+                if ($scope === 'custom_group' && !in_array($student_id, $allowed_student_ids)) {
+                    $errors[] = "Student ID $student_id is not part of the selected custom group";
+                    continue;
+                }
+
                 // Verify student belongs to the correct class
                 $stmt = $conn->prepare("
                 SELECT student_id, class_id, stream_id 
@@ -1468,7 +1553,6 @@ switch ($action) {
 
         ob_end_flush();
         break;
-
     case 'upload_results_excel':
         if (!hasPermission($conn, $user_id, $role_id, 'enter_results', $school_id)) {
             echo json_encode(['status' => 'error', 'message' => 'Permission denied: enter_results']);
@@ -1476,195 +1560,256 @@ switch ($action) {
             exit;
         }
 
-        $exam_id = isset($_POST['exam_id']) ? (int)$_POST['exam_id'] : 0;
-        $subject_ids = isset($_POST['subject_ids']) ? trim($_POST['subject_ids']) : '';
-        $scope = isset($_POST['scope']) ? $_POST['scope'] : '';
-        $stream_id = isset($_POST['stream_id']) ? (int)$_POST['stream_id'] : 0;
-        $student_id = isset($_POST['student_id']) ? (int)$_POST['student_id'] : 0;
-        $file = isset($_FILES['excel_file']) ? $_FILES['excel_file'] : null;
+        $exam_id     = (int)($_POST['exam_id']     ?? 0);
+        $scope       = trim($_POST['scope']        ?? '');
+        $class_id    = (int)($_POST['class_id']    ?? 0);
+        $stream_id   = (int)($_POST['stream_id']   ?? 0);
+        $student_id  = (int)($_POST['student_id']  ?? 0);
+        $group_id    = (int)($_POST['group_id']    ?? 0);
+        $subject_ids = trim($_POST['subject_ids']  ?? '');
+        $file        = $_FILES['excel_file']       ?? null;
 
-        // Check exam status
-        $stmt = $conn->prepare("SELECT status FROM exams WHERE exam_id = ? AND school_id = ?");
-        $stmt->bind_param("ii", $exam_id, $school_id);
-        $stmt->execute();
-        $exam_status = $stmt->get_result()->fetch_assoc()['status'];
-        $stmt->close();
-        if ($exam_status === 'closed') {
-            echo json_encode(['status' => 'error', 'message' => 'Cannot edit results for a closed exam']);
-            ob_end_flush();
-            exit;
-        }
-
-        // Validate inputs
-        $errors = [];
+        // ── 1. Basic validation ──
         if (empty($exam_id)) {
-            $errors[] = 'Exam ID is required';
-        }
-        if (empty($subject_ids)) {
-            $errors[] = 'At least one subject must be selected';
-        }
-        if (empty($file['name']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
-            $errors[] = 'An Excel file is required';
-        } elseif ($file['error'] !== UPLOAD_ERR_OK) {
-            $errors[] = 'File upload error: ' . $file['error'];
-        }
-        if (empty($scope) || !in_array($scope, ['class', 'stream', 'student'])) {
-            $errors[] = 'Invalid scope';
-        }
-        if ($scope === 'stream' && empty($stream_id)) {
-            $errors[] = 'Stream ID is required for stream scope';
-        }
-        if ($scope === 'student' && empty($student_id)) {
-            $errors[] = 'Student ID is required for student scope';
-        }
-
-        if (!empty($errors)) {
-            echo json_encode(['status' => 'error', 'message' => implode('; ', $errors)]);
+            echo json_encode(['status' => 'error', 'message' => 'Exam ID is required']);
             ob_end_flush();
             exit;
         }
 
-        // Validate exam
-        $stmt = $conn->prepare("SELECT class_id, grading_system_id FROM exams WHERE exam_id = ? AND school_id = ?");
+        $valid_scopes = ['class', 'stream', 'student', 'custom_group'];
+        if (empty($scope) || !in_array($scope, $valid_scopes)) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid or missing scope']);
+            ob_end_flush();
+            exit;
+        }
+
+        if (empty($file['name']) || $file['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['status' => 'error', 'message' => 'Valid Excel file is required']);
+            ob_end_flush();
+            exit;
+        }
+
+        // Check exam status & fetch class/grading info
+        $stmt = $conn->prepare("
+        SELECT status, class_id, grading_system_id 
+        FROM exams 
+        WHERE exam_id = ? AND school_id = ?
+    ");
         $stmt->bind_param("ii", $exam_id, $school_id);
         $stmt->execute();
         $exam = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$exam) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid exam ID']);
-            ob_end_flush();
-            exit;
-        }
-        $class_id = $exam['class_id'];
-        $grading_system_id = $exam['grading_system_id'];
 
-        // Validate subject_ids and check use_papers
-        $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
-        if (empty($subject_id_array)) {
-            echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
+        if (!$exam) {
+            echo json_encode(['status' => 'error', 'message' => 'Exam not found']);
             ob_end_flush();
             exit;
         }
-        $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
-        $stmt = $conn->prepare("SELECT es.subject_id, s.name, es.use_papers FROM exam_subjects es JOIN subjects s ON es.subject_id = s.subject_id WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)");
-        $params = array_merge([$exam_id], $subject_id_array);
-        $stmt->bind_param(str_repeat('i', count($params)), ...$params);
-        $stmt->execute();
-        $valid_subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        // Restrict teachers to only subjects/streams/classes they are assigned to
-        if ($_SESSION['role_name'] === 'Teacher') {
-            $restricted_subjects = [];
-            foreach ($valid_subjects as $subject) {
-                $stream_check = ($scope === 'stream') ? $stream_id : null;
-                if (!isTeacherAssignedToSubject($conn, $user_id, $_SESSION['role_name'], $class_id, $subject['subject_id'], $stream_check)) {
-                    $restricted_subjects[] = htmlspecialchars($subject['name']);
-                }
+
+        if ($exam['status'] === 'closed') {
+            echo json_encode(['status' => 'error', 'message' => 'Cannot upload results to a closed exam']);
+            ob_end_flush();
+            exit;
+        }
+
+        $class_id_from_exam = $exam['class_id'];
+        $grading_system_id  = $exam['grading_system_id'];
+
+        // Use form class_id if provided, otherwise fallback to exam's class_id
+        $class_id = $class_id ?: $class_id_from_exam;
+
+        // ── 2. Load subjects depending on scope ──
+        $subjects = [];
+        $subject_papers = [];
+
+        if ($scope === 'custom_group') {
+            // ── CUSTOM GROUP: Load subjects from the group (ignore form subject_ids) ──
+            if (!$group_id) {
+                echo json_encode(['status' => 'error', 'message' => 'Group ID is required for custom group scope']);
+                ob_end_flush();
+                exit;
             }
 
-            if (!empty($restricted_subjects)) {
-                $msg = "You are not assigned to upload results for the following subject(s): " . implode(', ', $restricted_subjects) .
-                    ". Please contact the school admin.";
-                echo json_encode(['status' => 'error', 'message' => $msg]);
+            $stmt = $conn->prepare("
+            SELECT 
+                s.subject_id, 
+                s.name, 
+                COALESCE(cs.use_papers, 0) AS use_papers
+            FROM custom_group_subjects cgs
+            JOIN subjects s ON cgs.subject_id = s.subject_id
+            LEFT JOIN class_subjects cs 
+                ON cs.subject_id = s.subject_id 
+                AND cs.class_id = ?
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ?
+              AND s.deleted_at IS NULL
+        ");
+            $stmt->bind_param("iii", $class_id, $group_id, $school_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($subjects)) {
+                echo json_encode(['status' => 'error', 'message' => 'No subjects assigned to this custom group for this class']);
+                ob_end_flush();
+                exit;
+            }
+        } else {
+            // ── Normal scopes (class, stream, student): Require subject_ids from form ──
+            if (empty($subject_ids)) {
+                echo json_encode(['status' => 'error', 'message' => 'At least one subject must be selected']);
+                ob_end_flush();
+                exit;
+            }
+
+            $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
+            if (empty($subject_id_array)) {
+                echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
+                ob_end_flush();
+                exit;
+            }
+
+            $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
+            $stmt = $conn->prepare("
+            SELECT es.subject_id, s.name, es.use_papers
+            FROM exam_subjects es
+            JOIN subjects s ON es.subject_id = s.subject_id
+            WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)
+        ");
+            $params = array_merge([$exam_id], $subject_id_array);
+            $stmt->bind_param(str_repeat('i', count($params)), ...$params);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (count($subjects) !== count($subject_id_array)) {
+                echo json_encode(['status' => 'error', 'message' => 'One or more selected subjects are not valid for this exam']);
                 ob_end_flush();
                 exit;
             }
         }
-        $stmt->close();
 
-        if (count($valid_subjects) !== count($subject_id_array)) {
-            echo json_encode(['status' => 'error', 'message' => 'One or more subject IDs are not associated with this exam']);
-            ob_end_flush();
-            exit;
-        }
-
-        // Fetch paper details for subjects with use_papers = 1
-        $subject_papers = [];
-        $subject_map = [];
-        foreach ($valid_subjects as $subject) {
-            $subject_id = $subject['subject_id'];
-            $subject_map[$subject_id] = $subject['name'];
-            $subject_papers[$subject_id] = [];
-            if ($subject['use_papers'] == 1) {
+        // ── 3. Load papers for subjects that use papers ──
+        foreach ($subjects as $subj) {
+            $sid = $subj['subject_id'];
+            $subject_papers[$sid] = [];
+            if ($subj['use_papers']) {
                 $stmt = $conn->prepare("
-                SELECT sp.paper_id, sp.paper_name, esp.max_score
-                FROM subject_papers sp
-                JOIN exam_subjects_papers esp ON sp.paper_id = esp.paper_id
-                WHERE esp.exam_id = ? AND sp.subject_id = ?
+                SELECT esp.paper_id, sp.paper_name, esp.max_score
+                FROM exam_subjects_papers esp
+                JOIN subject_papers sp ON esp.paper_id = sp.paper_id
+                WHERE esp.exam_id = ? AND esp.subject_id = ?
             ");
-                $stmt->bind_param("ii", $exam_id, $subject_id);
+                $stmt->bind_param("ii", $exam_id, $sid);
                 $stmt->execute();
-                $subject_papers[$subject_id] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $subject_papers[$sid] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
-                if (empty($subject_papers[$subject_id])) {
-                    $errors[] = "No papers found for subject {$subject['name']} (use_papers = 1)";
+
+                if (empty($subject_papers[$sid])) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => "Subject '{$subj['name']}' is set to use papers but no papers are defined"
+                    ]);
+                    ob_end_flush();
+                    exit;
                 }
             }
         }
 
-        if (!empty($errors)) {
-            echo json_encode(['status' => 'error', 'message' => implode('; ', $errors)]);
-            ob_end_flush();
-            exit;
+        // ── 4. Load allowed students based on scope ──
+        $allowed_students = []; // key = admission_no → ['student_id' => ..., 'stream_id' => ...]
+
+        if ($scope === 'custom_group') {
+            $stmt = $conn->prepare("
+            SELECT s.student_id, s.admission_no, s.stream_id
+            FROM custom_group_students cgs
+            JOIN students s ON cgs.student_id = s.student_id
+            WHERE cgs.group_id = ?
+              AND s.school_id = ?
+              AND s.class_id = ?
+              AND s.deleted_at IS NULL
+        ");
+            $stmt->bind_param("iii", $group_id, $school_id, $class_id);
+        } else {
+            $query = "
+            SELECT student_id, admission_no, stream_id 
+            FROM students 
+            WHERE school_id = ? AND class_id = ?
+        ";
+            $params = [$school_id, $class_id];
+            $types = "ii";
+
+            if ($scope === 'stream' && $stream_id) {
+                $query .= " AND stream_id = ?";
+                $params[] = $stream_id;
+                $types .= "i";
+            } elseif ($scope === 'student' && $student_id) {
+                $query .= " AND student_id = ?";
+                $params[] = $student_id;
+                $types .= "i";
+            }
+
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param($types, ...$params);
         }
 
-        // Validate scope and fetch students with stream_id
-        $students = [];
-        $query = "SELECT student_id, admission_no, full_name, stream_id FROM students WHERE school_id = ? AND class_id = ?";
-        $params = [$school_id, $class_id];
-        $types = "ii";
-        if ($scope === 'stream') {
-            $query .= " AND stream_id = ?";
-            $params[] = $stream_id;
-            $types .= "i";
-        } elseif ($scope === 'student') {
-            $query .= " AND student_id = ?";
-            $params[] = $student_id;
-            $types .= "i";
-        }
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param($types, ...$params);
         $stmt->execute();
-        $students_result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $student_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        foreach ($students_result as $student) {
-            $students[$student['admission_no']] = [
-                'student_id' => $student['student_id'],
-                'stream_id' => $student['stream_id']
+
+        foreach ($student_rows as $s) {
+            $allowed_students[trim($s['admission_no'])] = [
+                'student_id' => $s['student_id'],
+                'stream_id'  => $s['stream_id']
             ];
         }
-        if (empty($students)) {
+
+        if (empty($allowed_students)) {
             echo json_encode(['status' => 'error', 'message' => 'No students found for the selected scope']);
             ob_end_flush();
             exit;
         }
 
-        // Process Excel file
+        // ── 5. Restrict teachers to their assigned subjects ──
+        if ($_SESSION['role_name'] === 'Teacher') {
+            $restricted = [];
+            foreach ($subjects as $subj) {
+                $stream_check = ($scope === 'stream') ? $stream_id : null;
+                if (!isTeacherAssignedToSubject($conn, $user_id, $_SESSION['role_name'], $class_id, $subj['subject_id'], $stream_check)) {
+                    $restricted[] = htmlspecialchars($subj['name']);
+                }
+            }
+            if (!empty($restricted)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => "You are not assigned to upload results for: " . implode(', ', $restricted) . ". Contact admin."
+                ]);
+                ob_end_flush();
+                exit;
+            }
+        }
+
+        // ── 6. Process the Excel file ──
         try {
             $spreadsheet = IOFactory::load($file['tmp_name']);
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray();
             $header = array_shift($rows); // Remove header row
 
-            // Validate header based on use_papers
-            // Validate header based on use_papers — now supports both layouts
+            // ── Header validation (your existing logic, kept as-is) ──
             $expected_header = [];
-
-            // Check first cell of header to detect layout
             $first_header_cell = trim($header[0] ?? '');
 
             if ($first_header_cell === 'Student Name') {
-                // New layout: Name first
                 $expected_header = ['Student Name', 'Admission No'];
             } else {
-                // Old/classic layout: Admission No first
                 $expected_header = ['Admission No'];
             }
 
-            // Now add all subjects/papers after the fixed columns
-            foreach ($valid_subjects as $subject) {
-                $subject_id = $subject['subject_id'];
-                if ($subject['use_papers'] == 1 && !empty($subject_papers[$subject_id])) {
-                    foreach ($subject_papers[$subject_id] as $paper) {
+            foreach ($subjects as $subject) {
+                $sid = $subject['subject_id'];
+                if ($subject['use_papers'] && !empty($subject_papers[$sid])) {
+                    foreach ($subject_papers[$sid] as $paper) {
                         $expected_header[] = $subject['name'] . '-' . $paper['paper_name'];
                     }
                 } else {
@@ -1672,7 +1817,6 @@ switch ($action) {
                 }
             }
 
-            // Now validate
             $header_valid = true;
             foreach ($expected_header as $i => $expected) {
                 if (!isset($header[$i]) || trim($header[$i]) !== $expected) {
@@ -1690,160 +1834,171 @@ switch ($action) {
                 exit;
             }
 
-            // Process each row
-            // Process each row
+            // ── Start transaction for saving results ──
             $conn->begin_transaction();
-            try {
-                foreach ($rows as $row_num => $row) {
-                    // Column B = Admission No (index 1)
-                    $admission_no = isset($row[1]) ? trim($row[1]) : '';
-                    if (!isset($students[$admission_no])) {
-                        $errors[] = "Invalid admission number: $admission_no (Row " . ($row_num + 2) . ")";
-                        continue;
-                    }
-                    $current_student_id = $students[$admission_no]['student_id'];
-                    $current_stream_id = $students[$admission_no]['stream_id'];
+            $save_errors = [];
 
-                    // For single student scope, verify admission number
-                    if ($scope === 'student') {
-                        $stmt = $conn->prepare("SELECT admission_no FROM students WHERE student_id = ?");
-                        $stmt->bind_param("i", $student_id);
-                        $stmt->execute();
-                        $selected_admission_no = $stmt->get_result()->fetch_assoc()['admission_no'];
-                        $stmt->close();
-                        if ($admission_no !== $selected_admission_no) {
-                            $errors[] = "Admission number $admission_no does not match selected student (Row " . ($row_num + 2) . ")";
-                            continue;
-                        }
-                    }
+            foreach ($rows as $row_num => $row) {
+                // Adjust column index based on header layout
+                $adm_col = (trim($header[0] ?? '') === 'Student Name') ? 1 : 0;
+                $admission_no = trim($row[$adm_col] ?? '');
 
-                    // Check existing results
-                    $stmt = $conn->prepare("
-                    SELECT subject_id, paper_id
-                    FROM results
-                    WHERE exam_id = ? AND student_id = ? AND subject_id IN ($placeholders)
-                ");
-                    $params = array_merge([$exam_id, $current_student_id], $subject_id_array);
-                    $stmt->bind_param(str_repeat('i', count($params)), ...$params);
-                    $stmt->execute();
-                    $existing_results = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                    $stmt->close();
-                    $existing_map = [];
-                    foreach ($existing_results as $res) {
-                        $existing_map[$res['subject_id'] . ($res['paper_id'] ? ':' . $res['paper_id'] : '')] = true;
-                    }
+                if (empty($admission_no) || !isset($allowed_students[$admission_no])) {
+                    $save_errors[] = "Invalid or missing admission number '$admission_no' (Row " . ($row_num + 2) . ")";
+                    continue;
+                }
 
-                    // Process scores for each subject
-                    $col_index = (trim($header[0] ?? '') === 'Student Name') ? 2 : 1;
-                    foreach ($valid_subjects as $subject) {
-                        $subject_id = $subject['subject_id'];
-                        if ($subject['use_papers'] == 1 && !empty($subject_papers[$subject_id])) {
-                            foreach ($subject_papers[$subject_id] as $paper) {
-                                $score = isset($row[$col_index]) && is_numeric($row[$col_index]) ? (float)$row[$col_index] : null;
-                                $col_index++;
-                                if ($score === null || $score < 0 || $score > $paper['max_score']) {
-                                    if ($score !== null) {
-                                        $errors[] = "Score $score out of range (0-{$paper['max_score']}) for subject {$subject['name']}, paper {$paper['paper_name']}, admission_no $admission_no (Row " . ($row_num + 2) . ")";
-                                    }
-                                    continue;
-                                }
-                                $key = $subject_id . ':' . $paper['paper_id'];
-                                $grade = null;
-                                $points = null;
-                                if ($score !== null) {
-                                    $stmt = $conn->prepare("SELECT grade, points FROM grading_rules WHERE grading_system_id = ? AND min_score <= ? AND max_score >= ?");
-                                    $stmt->bind_param("idd", $grading_system_id, $score, $score);
-                                    $stmt->execute();
-                                    $result = $stmt->get_result()->fetch_assoc();
-                                    if ($result) {
-                                        $grade = $result['grade'];
-                                        $points = $result['points'];
-                                    }
-                                    $stmt->close();
-                                }
-                                if (isset($existing_map[$key])) {
-                                    // Update existing result
-                                    $stmt = $conn->prepare("
-                                    UPDATE results
-                                    SET score = ?, grade = ?, points = ?, updated_at = NOW()
-                                    WHERE exam_id = ? AND student_id = ? AND subject_id = ? AND paper_id = ?
-                                ");
-                                    $stmt->bind_param("dsdiiii", $score, $grade, $points, $exam_id, $current_student_id, $subject_id, $paper['paper_id']);
-                                } else {
-                                    // Insert new result
-                                    $stmt = $conn->prepare("
-                                    INSERT INTO results (school_id, exam_id, student_id, class_id, stream_id, subject_id, paper_id, score, grade, points, status, created_at)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
-                                ");
-                                    $stmt->bind_param("iiiiiiisds", $school_id, $exam_id, $current_student_id, $class_id, $current_stream_id, $subject_id, $paper['paper_id'], $score, $grade, $points);
-                                }
-                                if (!$stmt->execute()) {
-                                    $errors[] = "Failed to save result for admission_no $admission_no, subject {$subject['name']}, paper {$paper['paper_name']} (Row " . ($row_num + 2) . "): " . $stmt->error;
-                                }
-                                $stmt->close();
-                            }
-                        } else {
+                $current_student_id = $allowed_students[$admission_no]['student_id'];
+                $current_stream_id  = $allowed_students[$admission_no]['stream_id'];
+
+                // For single-student scope, extra check
+                if ($scope === 'student' && $student_id && $current_student_id != $student_id) {
+                    $save_errors[] = "Admission $admission_no does not match selected student (Row " . ($row_num + 2) . ")";
+                    continue;
+                }
+
+                // Start column index for scores
+                $col_index = $adm_col + 1;
+
+                foreach ($subjects as $subject) {
+                    $sid = $subject['subject_id'];
+                    $sname = $subject['name'];
+
+                    if ($subject['use_papers'] && !empty($subject_papers[$sid])) {
+                        // Multi-paper subject
+                        foreach ($subject_papers[$sid] as $paper) {
                             $score = isset($row[$col_index]) && is_numeric($row[$col_index]) ? (float)$row[$col_index] : null;
                             $col_index++;
-                            if ($score === null || $score < 0 || $score > 100) {
-                                if ($score !== null) {
-                                    $errors[] = "Score $score out of range (0-100) for subject {$subject['name']}, admission_no $admission_no (Row " . ($row_num + 2) . ")";
-                                }
+
+                            if ($score !== null && ($score < 0 || $score > $paper['max_score'])) {
+                                $save_errors[] = "Invalid score $score (0-{$paper['max_score']}) for {$sname} - {$paper['paper_name']}, adm $admission_no (Row " . ($row_num + 2) . ")";
                                 continue;
                             }
-                            $key = $subject_id . ':null';
-                            $grade = null;
-                            $points = null;
+
+                            $grade = $points = null;
                             if ($score !== null) {
-                                $stmt = $conn->prepare("SELECT grade, points FROM grading_rules WHERE grading_system_id = ? AND min_score <= ? AND max_score >= ?");
-                                $stmt->bind_param("idd", $grading_system_id, $score, $score);
-                                $stmt->execute();
-                                $result = $stmt->get_result()->fetch_assoc();
-                                if ($result) {
-                                    $grade = $result['grade'];
-                                    $points = $result['points'];
+                                $gstmt = $conn->prepare("
+                                SELECT grade, points 
+                                FROM grading_rules 
+                                WHERE grading_system_id = ? AND min_score <= ? AND max_score >= ?
+                            ");
+                                $gstmt->bind_param("idd", $grading_system_id, $score, $score);
+                                $gstmt->execute();
+                                $grow = $gstmt->get_result()->fetch_assoc();
+                                if ($grow) {
+                                    $grade = $grow['grade'];
+                                    $points = $grow['points'];
                                 }
-                                $stmt->close();
+                                $gstmt->close();
                             }
-                            if (isset($existing_map[$key])) {
-                                // Update existing result
-                                $stmt = $conn->prepare("
-                                UPDATE results
-                                SET score = ?, grade = ?, points = ?, updated_at = NOW()
-                                WHERE exam_id = ? AND student_id = ? AND subject_id = ? AND paper_id IS NULL
-                            ");
-                                $stmt->bind_param("dsdiii", $score, $grade, $points, $exam_id, $current_student_id, $subject_id);
-                            } else {
-                                // Insert new result
-                                $stmt = $conn->prepare("
-                                INSERT INTO results (school_id, exam_id, student_id, class_id, stream_id, subject_id, score, grade, points, status, created_at)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
-                            ");
-                                $stmt->bind_param("iiiiisdis", $school_id, $exam_id, $current_student_id, $class_id, $current_stream_id, $subject_id, $score, $grade, $points);
+
+                            // Upsert result
+                            $ustmt = $conn->prepare("
+                            INSERT INTO results (
+                                school_id, exam_id, student_id, class_id, stream_id,
+                                subject_id, paper_id, score, grade, points, status, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
+                            ON DUPLICATE KEY UPDATE
+                                score = ?, grade = ?, points = ?, updated_at = NOW()
+                        ");
+                            $ustmt->bind_param(
+                                "iiiiiiisdsdsds",
+                                $school_id,
+                                $exam_id,
+                                $current_student_id,
+                                $class_id,
+                                $current_stream_id,
+                                $sid,
+                                $paper['paper_id'],
+                                $score,
+                                $grade,
+                                $points,
+                                $score,
+                                $grade,
+                                $points
+                            );
+
+                            if (!$ustmt->execute()) {
+                                $save_errors[] = "DB error saving {$sname} - {$paper['paper_name']} for adm $admission_no: " . $ustmt->error;
                             }
-                            if (!$stmt->execute()) {
-                                $errors[] = "Failed to save result for admission_no $admission_no, subject {$subject['name']} (Row " . ($row_num + 2) . "): " . $stmt->error;
-                            }
-                            $stmt->close();
+                            $ustmt->close();
                         }
+                    } else {
+                        // Single score subject
+                        $score = isset($row[$col_index]) && is_numeric($row[$col_index]) ? (float)$row[$col_index] : null;
+                        $col_index++;
+
+                        if ($score !== null && ($score < 0 || $score > 100)) {
+                            $save_errors[] = "Invalid score $score (0-100) for $sname, adm $admission_no (Row " . ($row_num + 2) . ")";
+                            continue;
+                        }
+
+                        $grade = $points = null;
+                        if ($score !== null) {
+                            $gstmt = $conn->prepare("
+                            SELECT grade, points 
+                            FROM grading_rules 
+                            WHERE grading_system_id = ? AND min_score <= ? AND max_score >= ?
+                        ");
+                            $gstmt->bind_param("idd", $grading_system_id, $score, $score);
+                            $gstmt->execute();
+                            $grow = $gstmt->get_result()->fetch_assoc();
+                            if ($grow) {
+                                $grade = $grow['grade'];
+                                $points = $grow['points'];
+                            }
+                            $gstmt->close();
+                        }
+
+                        // Upsert (paper_id = NULL)
+                        $ustmt = $conn->prepare("
+                        INSERT INTO results (
+                            school_id, exam_id, student_id, class_id, stream_id,
+                            subject_id, paper_id, score, grade, points, status, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'pending', NOW())
+                        ON DUPLICATE KEY UPDATE
+                            score = ?, grade = ?, points = ?, updated_at = NOW()
+                    ");
+                        $ustmt->bind_param(
+                            "iiiiisdsdsds",
+                            $school_id,
+                            $exam_id,
+                            $current_student_id,
+                            $class_id,
+                            $current_stream_id,
+                            $sid,
+                            $score,
+                            $grade,
+                            $points,
+                            $score,
+                            $grade,
+                            $points
+                        );
+
+                        if (!$ustmt->execute()) {
+                            $save_errors[] = "DB error saving $sname for adm $admission_no: " . $ustmt->error;
+                        }
+                        $ustmt->close();
                     }
                 }
-                if (empty($errors)) {
-                    $conn->commit();
-                    echo json_encode(['status' => 'success', 'message' => 'Results uploaded successfully']);
-                } else {
-                    $conn->rollback();
-                    echo json_encode(['status' => 'error', 'message' => 'No results saved. Errors: ' . implode('; ', $errors)]);
-                }
-            } catch (Exception $e) {
+            }
+
+            if (empty($save_errors)) {
+                $conn->commit();
+                echo json_encode(['status' => 'success', 'message' => 'Results uploaded successfully']);
+            } else {
                 $conn->rollback();
-                error_log(" Error processing Excel: " . $e->getMessage());
-                echo json_encode(['status' => 'error', 'message' => 'Error processing Excel file: ' . $e->getMessage()]);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Some rows failed to save. Errors: ' . implode('; ', $save_errors)
+                ]);
             }
         } catch (Exception $e) {
-            error_log(" Error loading Excel: " . $e->getMessage());
-            echo json_encode(['status' => 'error', 'message' => 'Error loading Excel file: ' . $e->getMessage()]);
+            $conn->rollback();
+            error_log("Excel upload failed: " . $e->getMessage());
+            echo json_encode(['status' => 'error', 'message' => 'Server error processing Excel: ' . $e->getMessage()]);
         }
+
         ob_end_flush();
         break;
 
@@ -2107,15 +2262,16 @@ switch ($action) {
 
         echo json_encode(['status' => 'success', 'rules' => $rules]);
         break;
-
     case 'generate_excel_template':
         $exam_id = isset($_GET['exam_id']) ? (int)$_GET['exam_id'] : 0;
         $subject_ids = isset($_GET['subject_ids']) ? trim($_GET['subject_ids']) : '';
         $scope = isset($_GET['scope']) ? trim($_GET['scope']) : '';
         $class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
         $stream_id = isset($_GET['stream_id']) ? (int)$_GET['stream_id'] : 0;
+        $group_id  = isset($_GET['group_id'])  ? (int)$_GET['group_id']  : 0;
         $admission_no = isset($_GET['admission_no']) ? trim($_GET['admission_no']) : '';
         $include_students = isset($_GET['include_students']) ? (int)$_GET['include_students'] : 0;
+
         $school_id = $_SESSION['school_id'];
         $user_id = $_SESSION['user_id'];
         $role_id = $_SESSION['role_id'];
@@ -2127,17 +2283,21 @@ switch ($action) {
             exit;
         }
 
-        // Validate inputs
-        if (empty($exam_id) || empty($subject_ids) || empty($scope) || empty($class_id)) {
+        // Basic validation
+        if (empty($exam_id) || empty($scope) || empty($class_id)) {
             header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['status' => 'error', 'message' => 'Exam ID, subject IDs, scope, and class ID are required']);
+            echo json_encode(['status' => 'error', 'message' => 'Exam ID, scope, and class ID are required']);
             exit;
         }
-        if (!in_array($scope, ['class', 'stream', 'student'])) {
+
+        $valid_scopes = ['class', 'stream', 'student', 'custom_group'];
+        if (!in_array($scope, $valid_scopes)) {
             header('HTTP/1.1 400 Bad Request');
             echo json_encode(['status' => 'error', 'message' => 'Invalid scope']);
             exit;
         }
+
+        // Scope-specific required fields
         if ($scope === 'stream' && empty($stream_id)) {
             header('HTTP/1.1 400 Bad Request');
             echo json_encode(['status' => 'error', 'message' => 'Stream ID is required for stream scope']);
@@ -2148,73 +2308,121 @@ switch ($action) {
             echo json_encode(['status' => 'error', 'message' => 'Admission number is required for student scope']);
             exit;
         }
+        if ($scope === 'custom_group' && empty($group_id)) {
+            header('HTTP/1.1 400 Bad Request');
+            echo json_encode(['status' => 'error', 'message' => 'Group ID is required for custom group scope']);
+            exit;
+        }
 
-        // Verify exam and class
+        // Verify exam and class match
         $stmt = $conn->prepare("SELECT exam_id, class_id FROM exams WHERE exam_id = ? AND school_id = ?");
         $stmt->bind_param("ii", $exam_id, $school_id);
         $stmt->execute();
         $exam = $stmt->get_result()->fetch_assoc();
-        if (!$exam) {
-            header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['status' => 'error', 'message' => 'Invalid exam']);
-            exit;
-        }
-        if ($exam['class_id'] !== $class_id) {
-            header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['status' => 'error', 'message' => 'Class ID does not match exam']);
-            exit;
-        }
         $stmt->close();
 
-        // Validate subject_ids
-        $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
-        if (empty($subject_id_array)) {
+        if (!$exam || $exam['class_id'] != $class_id) {
             header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
-            exit;
-        }
-        $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
-        $stmt = $conn->prepare("
-        SELECT es.subject_id, es.use_papers, s.name 
-        FROM exam_subjects es 
-        JOIN subjects s ON es.subject_id = s.subject_id 
-        WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)
-    ");
-        $params = array_merge([$exam_id], $subject_id_array);
-        $stmt->bind_param(str_repeat('i', count($params)), ...$params);
-        $stmt->execute();
-        $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        if (count($subjects) !== count($subject_id_array)) {
-            header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['status' => 'error', 'message' => 'One or more subject IDs are not associated with this exam']);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid exam or class mismatch']);
             exit;
         }
 
-        // NEW HEADER ORDER: Name first, then Admission No, then subjects
-        $headers = ['Student Name', 'Admission No'];
+        // ── Load subjects based on scope ──
+        $subjects = [];
 
-        // Add subject/paper columns after the two fixed columns
+        if ($scope === 'custom_group') {
+            $stmt = $conn->prepare("
+            SELECT 
+                s.subject_id, 
+                s.name, 
+                COALESCE(cs.use_papers, 0) AS use_papers
+            FROM custom_group_subjects cgs
+            JOIN subjects s ON cgs.subject_id = s.subject_id
+            LEFT JOIN class_subjects cs 
+                   ON cs.subject_id = s.subject_id 
+                  AND cs.class_id = ?
+            WHERE cgs.group_id = ? 
+              AND s.school_id = ?
+        ");
+            $stmt->bind_param("iii", $class_id, $group_id, $school_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($subjects)) {
+                header('HTTP/1.1 400 Bad Request');
+                echo json_encode(['status' => 'error', 'message' => 'No subjects found in this custom group']);
+                exit;
+            }
+        } else {
+            if (empty($subject_ids)) {
+                header('HTTP/1.1 400 Bad Request');
+                echo json_encode(['status' => 'error', 'message' => 'Subject IDs are required for this scope']);
+                exit;
+            }
+
+            $subject_id_array = array_filter(array_map('intval', explode(',', $subject_ids)));
+            if (empty($subject_id_array)) {
+                header('HTTP/1.1 400 Bad Request');
+                echo json_encode(['status' => 'error', 'message' => 'Invalid subject IDs']);
+                exit;
+            }
+
+            $placeholders = implode(',', array_fill(0, count($subject_id_array), '?'));
+            $stmt = $conn->prepare("
+            SELECT es.subject_id, es.use_papers, s.name 
+            FROM exam_subjects es 
+            JOIN subjects s ON es.subject_id = s.subject_id 
+            WHERE es.exam_id = ? AND es.subject_id IN ($placeholders)
+        ");
+            $params = array_merge([$exam_id], $subject_id_array);
+            $stmt->bind_param(str_repeat('i', count($params)), ...$params);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (count($subjects) !== count($subject_id_array)) {
+                header('HTTP/1.1 400 Bad Request');
+                echo json_encode(['status' => 'error', 'message' => 'One or more subject IDs are invalid for this exam']);
+                exit;
+            }
+        }
+
+        // Fetch papers for subjects that use them
+        $subject_papers = [];
         foreach ($subjects as $subject) {
+            $subject_id = $subject['subject_id'];
+            $subject_papers[$subject_id] = [];
+
             if ($subject['use_papers'] == 1) {
                 $stmt = $conn->prepare("
-            SELECT sp.paper_name, esp.max_score
-            FROM exam_subjects_papers esp
-            JOIN subject_papers sp ON esp.paper_id = sp.paper_id
-            WHERE esp.exam_id = ? AND esp.subject_id = ?
-        ");
-                $stmt->bind_param("ii", $exam_id, $subject['subject_id']);
+                SELECT esp.paper_id, sp.paper_name, esp.max_score
+                FROM exam_subjects_papers esp
+                JOIN subject_papers sp ON esp.paper_id = sp.paper_id
+                WHERE esp.exam_id = ? AND esp.subject_id = ?
+            ");
+                $stmt->bind_param("ii", $exam_id, $subject_id);
                 $stmt->execute();
-                $papers = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $subject_papers[$subject_id] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
 
-                if (empty($papers)) {
+                if (empty($subject_papers[$subject_id])) {
                     header('HTTP/1.1 400 Bad Request');
-                    echo json_encode(['status' => 'error', 'message' => "No papers found for subject {$subject['name']}"]);
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => "No papers defined for subject '{$subject['name']}' (use_papers=1)"
+                    ]);
                     exit;
                 }
+            }
+        }
 
-                foreach ($papers as $paper) {
+        // ── Build header ──
+        $headers = ['Student Name', 'Admission No'];
+
+        foreach ($subjects as $subject) {
+            if ($subject['use_papers'] == 1 && !empty($subject_papers[$subject['subject_id']])) {
+                foreach ($subject_papers[$subject['subject_id']] as $paper) {
                     $headers[] = "{$subject['name']}-{$paper['paper_name']}";
                 }
             } else {
@@ -2222,40 +2430,48 @@ switch ($action) {
             }
         }
 
-        // Write header row
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->fromArray($headers, NULL, 'A1');
-        // Initialize spreadsheet
+        // Create spreadsheet
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->fromArray($headers, NULL, 'A1');
 
-        // Add student admission numbers + full names if include_students is enabled
+        // Add student list if requested
         if ($include_students) {
             $students = [];
-            if ($scope === 'class') {
+
+            if ($scope === 'custom_group') {
                 $stmt = $conn->prepare("
-            SELECT full_name, admission_no 
-            FROM students 
-            WHERE school_id = ? AND class_id = ?
-            ORDER BY full_name
-        ");
+                SELECT s.full_name, s.admission_no
+                FROM custom_group_students cgs
+                JOIN students s ON cgs.student_id = s.student_id
+                WHERE cgs.group_id = ? 
+                  AND s.school_id = ? 
+                  AND s.deleted_at IS NULL
+                ORDER BY s.admission_no ASC, s.full_name ASC
+            ");
+                $stmt->bind_param("ii", $group_id, $school_id);
+            } elseif ($scope === 'class') {
+                $stmt = $conn->prepare("
+                SELECT full_name, admission_no
+                FROM students
+                WHERE school_id = ? AND class_id = ?
+                ORDER BY admission_no ASC, full_name ASC
+            ");
                 $stmt->bind_param("ii", $school_id, $class_id);
             } elseif ($scope === 'stream') {
                 $stmt = $conn->prepare("
-            SELECT full_name, admission_no 
-            FROM students 
-            WHERE school_id = ? AND class_id = ? AND stream_id = ?
-            ORDER BY full_name
-        ");
+                SELECT full_name, admission_no
+                FROM students
+                WHERE school_id = ? AND class_id = ? AND stream_id = ?
+                ORDER BY admission_no ASC, full_name ASC
+            ");
                 $stmt->bind_param("iii", $school_id, $class_id, $stream_id);
             } elseif ($scope === 'student') {
                 $stmt = $conn->prepare("
-            SELECT full_name, admission_no 
-            FROM students 
-            WHERE school_id = ? AND class_id = ? AND admission_no = ?
-        ");
+                SELECT full_name, admission_no
+                FROM students
+                WHERE school_id = ? AND class_id = ? AND admission_no = ?
+            ");
                 $stmt->bind_param("iis", $school_id, $class_id, $admission_no);
             }
 
@@ -2265,25 +2481,19 @@ switch ($action) {
                 $stmt->close();
             }
 
-            if (empty($students)) {
-                header('HTTP/1.1 400 Bad Request');
-                echo json_encode(['status' => 'error', 'message' => 'No students found for the selected scope']);
-                exit;
+            if (!empty($students)) {
+                $row = 2;
+                foreach ($students as $student) {
+                    $sheet->setCellValue("A{$row}", $student['full_name']);
+                    $sheet->setCellValue("B{$row}", $student['admission_no']);
+                    $row++;
+                }
             }
-
-            // Write plain data: Column A = Full Name, Column B = Admission No
-            $row = 2;
-            foreach ($students as $student) {
-                $sheet->setCellValue("A{$row}", $student['full_name']);
-                $sheet->setCellValue("B{$row}", $student['admission_no']);
-                $row++;
-            }
-            // ← No styling here — removed completely
         }
 
-        // Set headers for download
+        // Force download
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="exam_results_template.xlsx"');
+        header('Content-Disposition: attachment;filename="exam_results_template_custom.xlsx"');
         header('Cache-Control: max-age=0');
 
         $writer = new Xlsx($spreadsheet);
@@ -2380,6 +2590,403 @@ switch ($action) {
         $stmt->close();
 
         echo json_encode(['status' => 'success', 'message' => 'Grading system deleted successfully']);
+        break;
+    case 'get_custom_groups_for_exam':
+        $exam_id = (int)($_POST['exam_id'] ?? 0);
+        if (!$exam_id) {
+            echo json_encode(['status' => 'error', 'message' => 'Exam ID required']);
+            exit;
+        }
+
+        // Get the class_id of this exam
+        $stmt = $conn->prepare("SELECT class_id FROM exams WHERE exam_id = ? AND school_id = ?");
+        $stmt->bind_param("ii", $exam_id, $school_id);
+        $stmt->execute();
+        $exam = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$exam) {
+            echo json_encode(['status' => 'error', 'message' => 'Exam not found']);
+            exit;
+        }
+
+        $class_id = $exam['class_id'];
+
+        $stmt = $conn->prepare("
+        SELECT group_id, name
+        FROM custom_groups
+        WHERE school_id = ? AND class_id = ?
+        ORDER BY name
+    ");
+        $stmt->bind_param("ii", $school_id, $class_id);
+        $stmt->execute();
+        $groups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        echo json_encode([
+            'status' => 'success',
+            'groups' => $groups
+        ]);
+        break;
+    case 'get_custom_group_data':
+        $exam_id  = (int)($_POST['exam_id']  ?? 0);
+        $group_id = (int)($_POST['group_id'] ?? 0);
+
+        if (!$exam_id || !$group_id) {
+            echo json_encode(['status' => 'error', 'message' => 'Missing exam_id or group_id']);
+            exit;
+        }
+
+        // Get group students — sorted by Admission No ASC (as requested)
+        $stmt = $conn->prepare("
+        SELECT s.student_id, s.admission_no, s.full_name, s.stream_id
+        FROM custom_group_students cgs
+        JOIN students s ON cgs.student_id = s.student_id
+        WHERE cgs.group_id = ? 
+          AND s.school_id = ? 
+          AND s.deleted_at IS NULL
+        ORDER BY s.admission_no ASC, s.full_name ASC
+    ");
+        $stmt->bind_param("ii", $group_id, $school_id);
+        $stmt->execute();
+        $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        // Get group subjects – get use_papers from class_subjects (via exam's class)
+        $stmt = $conn->prepare("
+        SELECT 
+            s.subject_id, 
+            s.name, 
+            COALESCE(cs.use_papers, 0) AS use_papers
+        FROM custom_group_subjects cgs
+        JOIN subjects s ON cgs.subject_id = s.subject_id
+        LEFT JOIN class_subjects cs 
+               ON cs.subject_id = s.subject_id 
+              AND cs.class_id = (SELECT class_id FROM exams WHERE exam_id = ?)
+        WHERE cgs.group_id = ? 
+          AND s.school_id = ?
+    ");
+        $stmt->bind_param("iii", $exam_id, $group_id, $school_id);
+        $stmt->execute();
+        $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        // Add papers for subjects that use them
+        foreach ($subjects as &$subj) {
+            if ($subj['use_papers']) {
+                $stmt = $conn->prepare("
+                SELECT paper_id, paper_name, max_score
+                FROM subject_papers
+                WHERE subject_id = ?
+            ");
+                $stmt->bind_param("i", $subj['subject_id']);
+                $stmt->execute();
+                $subj['papers'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+            } else {
+                $subj['papers'] = [];
+            }
+        }
+
+        // Attach existing results (same as before)
+        foreach ($students as &$student) {
+            $stmt = $conn->prepare("
+            SELECT subject_id, paper_id, score
+            FROM results
+            WHERE exam_id = ? AND student_id = ?
+        ");
+            $stmt->bind_param("ii", $exam_id, $student['student_id']);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $student['results'] = [];
+            foreach ($res as $r) {
+                $paper = $r['paper_id'] ?? 'null';
+                $student['results'][$r['subject_id']][$paper] = ['score' => $r['score']];
+            }
+        }
+
+        echo json_encode([
+            'status'   => 'success',
+            'students' => $students,
+            'subjects' => $subjects
+        ]);
+        break;
+    case 'export_raw_pdf':
+        require_once __DIR__ . '/../../vendor/autoload.php'; // mpdf
+
+        $exam_id      = (int)($_GET['exam_id']      ?? 0);
+        $scope        = trim($_GET['scope']         ?? '');
+        $group_id     = (int)($_GET['group_id']     ?? 0);
+        $stream_id    = (int)($_GET['stream_id']    ?? 0);
+        $subject_id   = (int)($_GET['subject_id']   ?? 0);
+        $adm_filter   = trim($_GET['adm_filter']    ?? '');
+
+        if (!$exam_id || !in_array($scope, ['current_view', 'stream', 'custom_group'])) {
+            http_response_code(400);
+            die("Invalid parameters");
+        }
+
+        // ── Get exam basic info ───────────────────────────────────────
+        $stmt = $conn->prepare("
+        SELECT e.exam_name, e.term, c.form_name, e.class_id
+        FROM exams e
+        JOIN classes c ON e.class_id = c.class_id
+        WHERE e.exam_id = ? AND e.school_id = ?
+    ");
+        $stmt->bind_param("ii", $exam_id, $school_id);
+        $stmt->execute();
+        $exam = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$exam) die("Exam not found");
+
+        // ── Determine context title (shown in PDF header) ─────────────
+        $context_line = '';
+
+        if ($stream_id) {
+            $stmt2 = $conn->prepare("SELECT stream_name FROM streams WHERE stream_id = ?");
+            $stmt2->bind_param("i", $stream_id);
+            $stmt2->execute();
+            $row = $stmt2->get_result()->fetch_assoc();
+            $stmt2->close();
+            if ($row) {
+                if ($scope === 'stream') {
+                    $context_line = "Stream: <strong>" . htmlspecialchars($row['stream_name']) . "</strong>";
+                } else {
+                    $context_line = "Filtered by Stream: <strong>" . htmlspecialchars($row['stream_name']) . "</strong>";
+                }
+            }
+        } elseif ($scope === 'custom_group' && $group_id) {
+            $stmt2 = $conn->prepare("SELECT name FROM custom_groups WHERE group_id = ?");
+            $stmt2->bind_param("i", $group_id);
+            $stmt2->execute();
+            $row = $stmt2->get_result()->fetch_assoc();
+            $stmt2->close();
+            if ($row) {
+                $context_line = "Custom Group: <strong>" . htmlspecialchars($row['name']) . "</strong>";
+            }
+        }
+
+        // ── Load subjects ─────────────────────────────────────────────
+        $subjects = [];
+
+        if ($scope === 'custom_group' && $group_id) {
+            // ── CUSTOM GROUP: Use ONLY subjects assigned to this group ──
+            $stmt = $conn->prepare("
+            SELECT 
+                s.subject_id,
+                s.name,
+                COALESCE(cs.use_papers, 0) AS use_papers
+            FROM custom_group_subjects cgs
+            JOIN subjects s ON cgs.subject_id = s.subject_id
+            LEFT JOIN class_subjects cs 
+                   ON cs.subject_id = s.subject_id 
+                  AND cs.class_id = ?
+            WHERE cgs.group_id = ?
+              AND s.school_id = ?
+              AND s.deleted_at IS NULL
+            ORDER BY s.name
+        ");
+            $stmt->bind_param("iii", $exam['class_id'], $group_id, $school_id);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($subjects)) die("No subjects assigned to this custom group");
+        } else {
+            // Normal scopes: use exam_subjects (with optional subject filter for current_view)
+            $where_subj = "";
+            $subj_params = [$exam_id];
+            $subj_types = "i";
+
+            if ($scope === 'current_view' && $subject_id) {
+                $where_subj = " AND es.subject_id = ?";
+                $subj_params[] = $subject_id;
+                $subj_types .= "i";
+            }
+
+            $stmt = $conn->prepare("
+            SELECT es.subject_id, s.name, es.use_papers
+            FROM exam_subjects es
+            JOIN subjects s ON es.subject_id = s.subject_id
+            WHERE es.exam_id = ? $where_subj
+            ORDER BY s.name
+        ");
+            $stmt->bind_param($subj_types, ...$subj_params);
+            $stmt->execute();
+            $subjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            if (empty($subjects)) die("No subjects found");
+        }
+
+        // ── Students ──────────────────────────────────────────────────
+        $query = "
+        SELECT s.student_id, s.admission_no, s.full_name
+        FROM students s
+        WHERE s.school_id = ?
+          AND s.class_id = ?
+          AND s.deleted_at IS NULL
+    ";
+        $params = [$school_id, $exam['class_id']];
+        $types = "ii";
+
+        // Stream filter (applies to current_view + stream scope)
+        if ($stream_id) {
+            $query .= " AND s.stream_id = ?";
+            $params[] = $stream_id;
+            $types .= "i";
+        }
+        // Custom group students
+        elseif ($scope === 'custom_group' && $group_id) {
+            $query = "
+            SELECT s.student_id, s.admission_no, s.full_name
+            FROM custom_group_students cgs
+            JOIN students s ON cgs.student_id = s.student_id
+            WHERE cgs.group_id = ?
+              AND s.school_id = ?
+              AND s.class_id = ?
+              AND s.deleted_at IS NULL
+        ";
+            $params = [$group_id, $school_id, $exam['class_id']];
+            $types = "iii";
+        }
+
+        if ($adm_filter !== '') {
+            $query .= " AND s.admission_no LIKE ?";
+            $params[] = "%$adm_filter%";
+            $types .= "s";
+        }
+
+        $query .= " ORDER BY s.admission_no ASC";
+
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $students = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        if (empty($students)) die("No students found for selected scope");
+
+        // ── Load results ──────────────────────────────────────────────
+        foreach ($students as &$st) {
+            $stmt = $conn->prepare("
+            SELECT subject_id, paper_id, score
+            FROM results
+            WHERE exam_id = ? AND student_id = ?
+        ");
+            $stmt->bind_param("ii", $exam_id, $st['student_id']);
+            $stmt->execute();
+            $res = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $st['results'] = [];
+            foreach ($res as $r) {
+                $paper = $r['paper_id'] ?? 'null';
+                $st['results'][$r['subject_id']][$paper] = $r['score'] ?? '-';
+            }
+        }
+
+        // ── Build PDF ─────────────────────────────────────────────────
+        $mpdf = new \Mpdf\Mpdf([
+            'mode'         => 'utf-8',
+            'format'       => 'A4-L',
+            'margin_left'  => 12,
+            'margin_right' => 12,
+            'margin_top'   => 18,
+            'margin_bottom' => 18,
+        ]);
+
+        $html = '
+    <div style="text-align:center; margin-bottom:12px;">
+        <h2 style="margin:0; font-size:18pt;">' . htmlspecialchars($exam['exam_name']) . '</h2>
+        <p style="margin:6px 0 2px 0; font-size:12pt;">
+            Class: ' . htmlspecialchars($exam['form_name']) . ' • ' . htmlspecialchars($exam['term']) . '
+        </p>';
+
+        if ($context_line) {
+            $html .= '
+        <p style="margin:2px 0; font-size:11pt; color:#444;">
+            ' . $context_line . '
+        </p>';
+        }
+
+        $html .= '
+    </div>
+    <hr style="margin:12px 0 18px 0; border:0; border-top:1px solid #aaa;">
+    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; font-size:9.2pt;">
+        <thead style="background:#f0f2f5;">
+            <tr>
+                <th style="width:55px; text-align:center;">Adm No</th>
+                <th style="width:170px; text-align:left;">Student Name</th>';
+
+        foreach ($subjects as $subj) {
+            if ($subj['use_papers']) {
+                $stmt = $conn->prepare("
+                SELECT sp.paper_name, esp.max_score
+                FROM exam_subjects_papers esp
+                JOIN subject_papers sp ON esp.paper_id = sp.paper_id
+                WHERE esp.exam_id = ? AND esp.subject_id = ?
+                ORDER BY sp.paper_name
+            ");
+                $stmt->bind_param("ii", $exam_id, $subj['subject_id']);
+                $stmt->execute();
+                $papers = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+
+                foreach ($papers as $p) {
+                    $html .= "<th style=\"width:65px; text-align:center;\">{$p['paper_name']}<br><small>(max {$p['max_score']})</small></th>";
+                }
+            } else {
+                $html .= "<th style=\"width:85px; text-align:center;\">{$subj['name']}<br><small>(max 100)</small></th>";
+            }
+        }
+
+        $html .= '
+            </tr>
+        </thead>
+        <tbody>';
+
+        foreach ($students as $student) {
+            $html .= '
+        <tr>
+            <td style="text-align:center;">' . htmlspecialchars($student['admission_no']) . '</td>
+            <td>' . htmlspecialchars($student['full_name']) . '</td>';
+
+            foreach ($subjects as $subj) {
+                if ($subj['use_papers']) {
+                    $stmt = $conn->prepare("
+                    SELECT paper_id 
+                    FROM exam_subjects_papers 
+                    WHERE exam_id = ? AND subject_id = ?
+                ");
+                    $stmt->bind_param("ii", $exam_id, $subj['subject_id']);
+                    $stmt->execute();
+                    $paperIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'paper_id');
+                    $stmt->close();
+
+                    foreach ($paperIds as $pid) {
+                        $score = $student['results'][$subj['subject_id']][$pid] ?? '-';
+                        $html .= "<td style=\"text-align:center;\">$score</td>";
+                    }
+                } else {
+                    $score = $student['results'][$subj['subject_id']]['null'] ?? '-';
+                    $html .= "<td style=\"text-align:center;\">$score</td>";
+                }
+            }
+            $html .= '</tr>';
+        }
+
+        $html .= '
+        </tbody>
+    </table>';
+
+        $mpdf->WriteHTML($html);
+        $mpdf->Output("Raw_Results_" . date('Y-m-d') . ".pdf", \Mpdf\Output\Destination::DOWNLOAD);
+
+        exit;
         break;
 
     default:
